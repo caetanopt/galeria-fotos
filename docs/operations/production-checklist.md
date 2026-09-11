@@ -1,0 +1,224 @@
+# Checklist de produção
+
+Critério de saída da Fase 7 (`CLAUDE.md`, secção 22): build reproduzível,
+migrações aplicadas, segredos externos ao repositório e smoke tests
+aprovados. Este documento é o guia operacional para chegar lá — segue-o
+por ordem na primeira implantação; nas seguintes, salta diretamente para
+"Antes de cada deploy".
+
+## 0. Notas específicas de um deploy na Vercel
+
+Ver `docs/decisions/0009-deploy-vercel.md` para a decisão de usar a
+Vercel em vez de Cloud Run. Armadilhas reais encontradas na primeira
+implantação, para não se repetirem:
+
+- **Framework Preset**: no import do projeto, a Vercel pode detetar
+  "Other" em vez de "Next.js" (aconteceu com a presença de
+  `pnpm-workspace.yaml` na raiz). Sem o preset correto, a build "passa"
+  mas todas as rotas dão 404. Corrigir em Project Settings → Build and
+  Deployment → Framework Preset → "Next.js", e fazer redeploy.
+- **`NEXT_PUBLIC_SUPABASE_URL`**: usar só o "Project URL" simples
+  (`https://<ref>.supabase.co`), nunca o URL da "Data API"
+  (`.../rest/v1`) que o dashboard novo do Supabase também mostra — um
+  `/rest/v1` a mais aqui faz o pedido de login cair no gateway errado
+  ("No API key found in request").
+- **Supabase → Authentication → URL Configuration**: "Site URL" e
+  "Redirect URLs" têm de apontar para o domínio de produção real
+  (`https://<domínio>/**`), não para `http://localhost:3000` (valor por
+  omissão) — caso contrário o login OAuth termina a sessão de volta em
+  `localhost` em vez do domínio de produção.
+- **Google Cloud → OAuth consent screen em modo "Testing"**: só
+  utilizadores na lista de "Test users" conseguem autorizar (erro
+  `403: access_denied` para todos os outros, incluindo o próprio
+  administrador se não estiver lá). Adicionar o email do administrador
+  em "Test users". Enquanto o ecrã de consentimento estiver em
+  "Testing" (não publicado/verificado pela Google), os refresh tokens
+  emitidos expiram ao fim de 7 dias — a ligação ao Drive vai
+  ocasionalmente pedir reconexão. Aceitável para um único
+  administrador; publicar/verificar a app remove este limite mas é um
+  processo mais longo, só compensa com múltiplos administradores ou
+  uso público.
+- **Variáveis `NEXT_PUBLIC_*`**: qualquer alteração só tem efeito depois
+  de um novo deploy (ficam embutidas no código no momento da build) —
+  um "Redeploy" simples chega, não é preciso alterar código.
+- **`CRON_SECRET` e sincronização com o Drive**: `vercel.json` define um
+  Cron Job diário (`/api/cron/sync-drive-deletions`, ver
+  `server/use-cases/drive-sync.ts`) que apaga na aplicação as
+  fotografias apagadas diretamente no Google Drive. Gerar um valor com
+  `openssl rand -hex 32` e configurar em Project Settings → Environment
+  Variables com o nome exato `CRON_SECRET` — a Vercel injeta-o
+  automaticamente como `Authorization: Bearer <valor>` nas chamadas do
+  Cron Job; sem esta variável a rota recusa sempre o pedido (falha
+  fechada). No plano Hobby, os Cron Jobs só podem correr uma vez por
+  dia — a sincronização não é em tempo real, pode demorar até ~24h a
+  refletir uma eliminação feita no Drive.
+
+## 1. Antes da primeira implantação
+
+### Google Cloud
+
+1. Criar um projeto Google Cloud (ou usar um existente).
+2. Ativar a **Google Drive API**.
+3. Configurar o ecrã de consentimento OAuth (tipo "Externo" se os
+   administradores não forem todos do mesmo Workspace; "Interno" caso
+   contrário).
+4. Criar credenciais OAuth 2.0 do tipo "Aplicação Web":
+   - **URI de redirecionamento autorizado**: `https://<domínio-de-produção>/api/google-drive/callback`.
+   - Guardar `Client ID` e `Client Secret` — vão para
+     `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`.
+5. Âmbito pedido: só `https://www.googleapis.com/auth/drive.file`
+   (secção 6.2) — não pedir acesso mais amplo ao Drive.
+
+### Supabase
+
+1. Criar um projeto Supabase (produção — nunca reutilizar um projeto de
+   desenvolvimento/staging).
+2. Aplicar as migrações por ordem, com a CLI do Supabase ligada ao
+   projeto:
+
+   ```bash
+   supabase link --project-ref <ref-do-projeto>
+   supabase db push
+   ```
+
+   Confirmar que todas as migrações em `supabase/migrations/` (0001 a
+   0008 nesta fase) foram aplicadas — em particular a 0005, que liga
+   `photos` à publicação `supabase_realtime`; sem ela, o tempo real
+   (secção 11) fica silenciosamente inativo.
+
+   **Sem a CLI do Supabase à mão?** `docs/operations/migracoes-pendentes.sql`
+   reúne as migrações 0006 a 0008 num único script para colar no SQL
+   Editor do painel. É idempotente (`if not exists`/`if exists` em todas
+   as instruções), por isso é seguro correr sem saber ao certo o que já
+   foi aplicado, e seguro correr mais do que uma vez. Verificado contra
+   um Postgres 16 real: produz exatamente o mesmo esquema que aplicar as
+   migrações 0006, 0007 e 0008 por ordem.
+
+3. Ativar o fornecedor **Google** em Authentication → Sign In / Providers,
+   para o login administrativo (secção 6.1) — distinto do OAuth do Drive.
+4. Na mesma página (Authentication → Sign In / Providers), ativar
+   **Allow anonymous sign-ins** (secção 6.3) — necessário para os
+   convidados. Não é um fornecedor OAuth com Client ID/Secret; é um
+   interruptor simples, normalmente junto ao topo da página, antes ou
+   separado da lista de fornecedores de terceiros (Google, GitHub, etc.).
+5. Confirmar que o bucket `photo-previews` existe e continua privado
+   (`public: false`) — criado pela migração 0004.
+6. Copiar `Project URL`, `anon public key` e `service_role key` — vão
+   para `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e
+   `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Segredos e configuração (nunca no repositório)
+
+Gerar/reunir e guardar num gestor de segredos (Google Secret Manager,
+recomendado para o Cloud Run — nunca em ficheiros `.env` commitados):
+
+| Variável                                              | Como gerar                                                                                                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_ENCRYPTION_KEY`                                  | 32 bytes aleatórios, ex.: `openssl rand -hex 32` (usar só os primeiros 32 carateres se precisar de string, mas confirmar `>= 32 bytes`)                           |
+| `APP_TOKEN_PEPPER`                                    | `openssl rand -hex 32`                                                                                                                                            |
+| `SUPABASE_SERVICE_ROLE_KEY`                           | Painel do Supabase                                                                                                                                                |
+| `GOOGLE_OAUTH_CLIENT_SECRET`                          | Google Cloud Console                                                                                                                                              |
+| `ADMIN_EMAILS`                                        | Lista separada por vírgulas dos primeiros administradores (secção 6.1) — só necessário até o primeiro admin ter `profiles.role = 'admin'`                         |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Opcionais, mas fortemente recomendados em produção — sem eles, o rate limiting (secção 15, `lib/security/rate-limit.ts`) fica desligado                           |
+| `SENTRY_DSN`                                          | Opcional (secção 18)                                                                                                                                              |
+| `CRON_SECRET`                                         | `openssl rand -hex 32` — protege `/api/cron/sync-drive-deletions` (ver secção 0 acima); sem esta variável a sincronização com eliminações no Drive fica desligada |
+
+Nunca reutilizar `APP_ENCRYPTION_KEY`/`APP_TOKEN_PEPPER` entre
+desenvolvimento e produção. Rodar `APP_ENCRYPTION_KEY` implica
+descuidadamente invalidar todas as ligações Google Drive encriptadas
+com a versão antiga — o esquema já suporta `token_key_version` para uma
+rotação faseada (secção 15), mas isso ainda não tem automação; por agora,
+uma rotação exige reconectar manualmente os administradores afetados.
+
+### Domínio e HTTPS
+
+- Confirmar o domínio de produção antes de gerar `GOOGLE_OAUTH_REDIRECT_URI`
+  (tem de coincidir exatamente com o registado na Google Cloud Console).
+- Cloud Run fornece TLS automaticamente; `Strict-Transport-Security`
+  (secção 15, `lib/security/csp.ts`) já está sempre presente nas
+  respostas.
+
+## 2. Build e implantação (Cloud Run)
+
+O `Dockerfile` já está preparado (`output: standalone`, utilizador não-root,
+imagem final `node:22-slim`).
+
+```bash
+# A partir da raiz do repositório:
+gcloud builds submit --tag <região>-docker.pkg.dev/<projeto>/<repo>/livegallery:<tag>
+
+gcloud run deploy livegallery \
+  --image <região>-docker.pkg.dev/<projeto>/<repo>/livegallery:<tag> \
+  --region <região> \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars NEXT_PUBLIC_APP_URL=https://<domínio>,NEXT_PUBLIC_SUPABASE_URL=...,... \
+  --set-secrets SUPABASE_SERVICE_ROLE_KEY=supabase-service-role:latest,APP_ENCRYPTION_KEY=app-encryption-key:latest,APP_TOKEN_PEPPER=app-token-pepper:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-secret:latest
+```
+
+Notas:
+
+- `--set-secrets` referencia segredos já criados no Secret Manager —
+  nunca passar valores sensíveis diretamente em `--set-env-vars`.
+- O build reproduzível vem do `pnpm-lock.yaml` commitado
+  (`pnpm install --frozen-lockfile` no `Dockerfile`) — nunca fazer
+  deploy sem o lockfile atualizado e commitado.
+- Este ambiente de desenvolvimento não tem acesso de rede ao Google
+  Artifact Registry/Cloud Build, por isso o `docker build` local nunca
+  foi executado até ao fim nesta sessão (só validado estaticamente e
+  por reprodução manual do `output: standalone` — ver
+  `docs/decisions/0008-fase-7-hardening-deploy.md`). Correr
+  `docker build .` localmente, com acesso de rede normal, antes da
+  primeira implantação real.
+
+## 3. Smoke tests pós-deploy
+
+Correr manualmente (ou com um script) depois de cada deploy:
+
+1. `GET /api/health` devolve `200` com `{"data":{"status":"ok",...}}`.
+2. A página inicial (`/`) carrega sem erros de consola.
+3. `/admin/login` mostra o botão "Entrar com Google" e não rebenta.
+4. Iniciar sessão como administrador real, confirmar redireção para
+   `/admin`.
+5. Ligar o Google Drive (`/admin/settings/integrations`) com uma conta
+   de teste — confirmar que a pasta raiz "LiveGallery" aparece no Drive
+   dessa conta.
+6. Criar um álbum, gerar um link, abri-lo numa janela anónima —
+   confirmar que a galeria carrega.
+7. Enviar uma fotografia através do link — confirmar que aparece na
+   galeria (idealmente em dois browsers, para validar o tempo real da
+   secção 11) e que o ficheiro original chega à pasta do álbum no Drive.
+8. Aprovar/ocultar/eliminar essa fotografia como administrador.
+9. Revogar o link e confirmar que deixa de abrir.
+10. Verificar os cabeçalhos de segurança numa resposta real:
+    ```bash
+    curl -sI https://<domínio>/ | grep -i "content-security-policy\|strict-transport"
+    ```
+
+Estes passos cobrem os cenários E2E da secção 19 que exigem um projeto
+Supabase/Google real e por isso não correm em CI (ver
+`docs/decisions/0008`) — fazem parte deste checklist manual em vez de
+uma suite automática.
+
+## 4. Antes de cada deploy (implantações seguintes)
+
+- [ ] `pnpm check` e `pnpm build` passam localmente/em CI.
+- [ ] Migrações novas em `supabase/migrations/` aplicadas com
+      `supabase db push` **antes** de o novo código (que pode depender
+      delas) ficar ativo.
+- [ ] Nenhum segredo novo ficou só em `.env.local` — confirmar que está
+      também no gestor de segredos de produção.
+- [ ] `docs/implementation-status.md` e a ADR da fase atualizados.
+- [ ] Smoke tests da secção 3 repetidos depois do deploy.
+
+## 5. Rollback
+
+- Cloud Run mantém revisões anteriores por omissão — reverter é
+  `gcloud run services update-traffic livegallery --to-revisions=<revisão-anterior>=100`.
+- Migrações do Supabase **não** têm rollback automático — escrever
+  sempre a migração seguinte de forma aditiva (nunca destrutiva sem uma
+  estratégia explícita, regra 11 da secção 24) para que reverter o
+  código da aplicação não deixe o esquema incompatível.
+- Se uma migração já aplicada precisar de ser desfeita, escrever uma
+  nova migração que reverte a anterior — nunca editar uma migração já
+  aplicada em produção.
