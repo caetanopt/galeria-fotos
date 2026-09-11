@@ -1,0 +1,319 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type TouchEvent,
+} from "react";
+import { useMutation } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
+import type { PublicPhoto } from "@/server/use-cases/photos";
+
+const SWIPE_THRESHOLD_PX = 50;
+
+/** Resposta visual ao toque, partilhada por todos os botões do diálogo
+ * (secção 17: não depender só de cor). Num telemóvel não há `hover`, por
+ * isso sem `active:` um toque num botão não dava sinal nenhum de ter
+ * sido registado. `transition` (e não `transition-colors`) para que a
+ * escala seja de facto animada; `motion-reduce:` desliga-a para quem
+ * pediu movimento reduzido. */
+const BUTTON_PRESS =
+  "transition active:scale-95 motion-reduce:active:scale-100";
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+}
+
+/** Deslocamentos à volta da fotografia atual que chegam a ser desenhados
+ * (secção 10.2: "imagem ajustada ao ecrã") — a anterior e a seguinte
+ * espreitam parcialmente dos lados, o resto da lista nem chega a
+ * montar (pode ter dezenas de fotografias). */
+const VISIBLE_OFFSETS = [-1, 0, 1] as const;
+
+/** Acima disto, uma bolinha por fotografia deixaria de ser legível —
+ * um álbum de casamento facilmente tem uma ou duas centenas de
+ * fotografias. Nesses casos o contador "X / Y" na barra superior,
+ * sempre presente, continua a indicar a posição. */
+const MAX_PHOTOS_FOR_DOTS = 12;
+
+/**
+ * Lightbox de ecrã inteiro (secção 10.2). "Eliminar" aparece para o
+ * dono do álbum (`isOwner`) e para quem enviou aquela fotografia
+ * (`photo.isMine`) — os dois resolvidos no servidor, nunca confiados
+ * apenas ao cliente: `DELETE /api/photos/[photoId]` volta a validar
+ * quem pede, comparando `uploaded_by` e exigindo uma sessão de álbum
+ * válida (ver `deleteOwnPhoto`).
+ *
+ * Em vez de um fundo preto sólido a cobrir a página, o diálogo abre
+ * sobre a própria galeria com um véu semitransparente desfocado
+ * (`backdrop-filter: blur`, a mesma técnica do cabeçalho com
+ * fotografia de capa — ADR 0023) — a fotografia atual aparece num
+ * cartão arredondado, com a anterior/seguinte a espreitar dos lados
+ * (ADR 0024), em vez de ocupar o ecrã inteiro.
+ */
+export function Lightbox({
+  photos,
+  initialIndex,
+  downloadEnabled,
+  isOwner,
+  onClose,
+  onIndexChange,
+  onDeleted,
+}: {
+  photos: PublicPhoto[];
+  initialIndex: number;
+  downloadEnabled: boolean;
+  isOwner: boolean;
+  onClose: () => void;
+  onIndexChange?: (photoId: string) => void;
+  onDeleted: (photoId: string) => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const deleteMutation = useMutation({
+    mutationFn: (photoId: string) =>
+      apiFetch(`/api/photos/${photoId}`, { method: "DELETE" }),
+    onSuccess: (_data, photoId) => onDeleted(photoId),
+  });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const touchStartX = useRef<number | null>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  const photo = photos[index];
+
+  const goPrev = useCallback(() => {
+    setIndex((current) => Math.max(0, current - 1));
+  }, []);
+
+  const goNext = useCallback(() => {
+    setIndex((current) => Math.min(photos.length - 1, current + 1));
+  }, [photos.length]);
+
+  useEffect(() => {
+    onIndexChange?.(photo?.id ?? "");
+    // Só quando o índice (ou a lista) muda — não a cada nova referência do callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, photo?.id]);
+
+  // Foco inicial + restaurar foco ao fechar, bloquear scroll de fundo (secção 10.2/17).
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      previouslyFocused.current?.focus?.();
+    };
+  }, []);
+
+  // Teclado: setas, Escape, e o foco preso dentro do modal com Tab.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        goPrev();
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        goNext();
+        return;
+      }
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = getFocusableElements(dialogRef.current);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [goPrev, goNext, onClose]);
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (touchStartX.current === null) return;
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
+    const deltaX = endX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return;
+    if (deltaX > 0) goPrev();
+    else goNext();
+  }
+
+  if (!photo) return null;
+
+  const hasPrev = index > 0;
+  const hasNext = index < photos.length - 1;
+
+  return (
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visualização de fotografia"
+      className="fixed inset-0 z-50 flex flex-col bg-black/20 backdrop-blur-md"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Espaçamento próprio SOMADO ao inset da barra de estado, em vez
+          de `safe-top` + `pt-*` (ver o aviso em app/globals.css: assim o
+          `pt-*` era ignorado e os controlos ficavam colados ao topo). */}
+      <div className="flex items-center justify-between gap-3 px-4 pt-[calc(env(safe-area-inset-top)+2.5rem)] pb-3 sm:pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+        <p className="text-sm text-white/70" aria-live="polite">
+          {index + 1} / {photos.length}
+        </p>
+
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          className={`rounded-full border border-white/30 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/10 ${BUTTON_PRESS}`}
+        >
+          Fechar
+        </button>
+      </div>
+
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+        {VISIBLE_OFFSETS.map((offset) => {
+          const slideIndex = index + offset;
+          const slidePhoto = photos[slideIndex];
+          if (!slidePhoto) return null;
+          const isCurrent = offset === 0;
+
+          return (
+            <div
+              key={slidePhoto.id}
+              aria-hidden={!isCurrent}
+              className={`rounded-card absolute top-1/2 left-1/2 h-[68%] w-[78%] max-w-xl overflow-hidden bg-black/30 shadow-2xl transition-[transform,opacity] duration-300 sm:w-[62%] ${isCurrent ? "" : "pointer-events-none"}`}
+              style={{
+                transform: `translate(-50%, -50%) translateX(${offset * 88}%) scale(${isCurrent ? 1 : 0.85})`,
+                opacity: isCurrent ? 1 : 0.45,
+                zIndex: isCurrent ? 2 : 1,
+              }}
+            >
+              {slidePhoto.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL assinado de um domínio de Storage dinâmico (por instalação); ver docs/decisions/0005.
+                <img
+                  src={slidePhoto.previewUrl}
+                  alt={isCurrent ? "Fotografia do álbum" : ""}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                isCurrent && (
+                  <p className="flex h-full items-center justify-center text-sm text-white/60">
+                    A carregar…
+                  </p>
+                )
+              )}
+            </div>
+          );
+        })}
+
+        {hasPrev && (
+          <button
+            type="button"
+            onClick={goPrev}
+            aria-label="Fotografia anterior"
+            className={`absolute top-1/2 left-2 z-10 -translate-y-1/2 rounded-full border border-white/30 bg-black/20 p-3 text-lg text-white hover:bg-white/10 sm:left-4 ${BUTTON_PRESS}`}
+          >
+            ‹
+          </button>
+        )}
+
+        {hasNext && (
+          <button
+            type="button"
+            onClick={goNext}
+            aria-label="Próxima fotografia"
+            className={`absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded-full border border-white/30 bg-black/20 p-3 text-lg text-white hover:bg-white/10 sm:right-4 ${BUTTON_PRESS}`}
+          >
+            ›
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-col items-center gap-3 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white/70">
+          <span>
+            Enviada em {new Date(photo.uploadedAt).toLocaleDateString("pt-PT")}
+          </span>
+
+          {downloadEnabled && (
+            <a
+              href={`/api/media/${photo.id}/original`}
+              download
+              className={`inline-block rounded-full border border-white/30 px-4 py-1.5 font-medium text-white hover:bg-white/10 ${BUTTON_PRESS}`}
+            >
+              Transferir
+            </a>
+          )}
+
+          {(isOwner || photo.isMine) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    isOwner
+                      ? "Eliminar esta fotografia? Esta ação não pode ser desfeita."
+                      : "Eliminar a sua fotografia? Ela desaparece da galeria para toda a gente e esta ação não pode ser desfeita.",
+                  )
+                ) {
+                  deleteMutation.mutate(photo.id);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className={`border-danger/60 text-danger rounded-full border px-4 py-1.5 font-medium hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${BUTTON_PRESS}`}
+            >
+              {deleteMutation.isPending ? "A eliminar…" : "Eliminar"}
+            </button>
+          )}
+        </div>
+
+        {deleteMutation.isError && (
+          <p role="alert" className="text-danger text-xs">
+            Não foi possível eliminar a fotografia. Tente novamente.
+          </p>
+        )}
+
+        {photos.length <= MAX_PHOTOS_FOR_DOTS && (
+          <div
+            role="presentation"
+            className="flex items-center justify-center gap-1.5"
+          >
+            {photos.map((dotPhoto, dotIndex) => (
+              <span
+                key={dotPhoto.id}
+                className={`h-1.5 rounded-full transition-all ${
+                  dotIndex === index ? "w-4 bg-white" : "w-1.5 bg-white/40"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
