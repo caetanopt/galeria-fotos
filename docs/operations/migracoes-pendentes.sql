@@ -1,5 +1,5 @@
 -- =====================================================================
--- LiveGallery — migrações pendentes em produção (0006 a 0008)
+-- LiveGallery — migrações pendentes em produção (0006 a 0009)
 --
 -- COMO USAR: abrir o painel do Supabase → SQL Editor → colar isto tudo
 -- → Run. Demora menos de um segundo num álbum desta dimensão.
@@ -8,10 +8,12 @@
 -- que já foi aplicado: cada instrução usa "if not exists"/"if exists",
 -- por isso o que já existir é simplesmente ignorado, sem erro.
 --
--- Corresponde ao estado final das migrações 0006, 0007 e 0008 do
+-- Corresponde ao estado final das migrações 0006 a 0009 do
 -- repositório. A 0007 não aparece aqui porque a 0008 substitui o índice
--- que ela criava — criá-lo primeiro só para o apagar a seguir seria
--- trabalho desperdiçado. O resultado final é exatamente o mesmo.
+-- que ela criava, e o índice de ordenação da 0008 aparece já na forma
+-- final que a 0009 lhe deu — criá-los primeiro só para os apagar a
+-- seguir seria trabalho desperdiçado. O resultado final é exatamente o
+-- mesmo.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -27,7 +29,7 @@ alter table public.album_share_links
   add column if not exists token_key_version integer;
 
 -- ---------------------------------------------------------------------
--- 0008 — Índices parciais de "photos" (inclui o objetivo da 0007)
+-- 0008 + 0009 — Índices parciais de "photos" (inclui o objetivo da 0007)
 --
 -- Praticamente todas as leituras de "photos" filtram por
 -- "deleted_at is null", mas nenhum índice cobria essa condição. Estes
@@ -39,12 +41,16 @@ alter table public.album_share_links
 -- tenha chegado a ser criado.
 -- ---------------------------------------------------------------------
 
--- Galeria pública: paginação por cursor sobre sort_order.
-create index if not exists photos_album_status_sort_active_idx
-  on public.photos (album_id, status, sort_order desc)
+-- Galeria pública: paginação por cursor sobre (sort_order, id). O "id"
+-- no fim é o desempate da 0009 (docs/decisions/0043): fotografias
+-- enviadas no mesmo milissegundo partilham o mesmo "sort_order", e sem
+-- ele o Postgres tinha de ordenar o resultado à parte.
+create index if not exists photos_album_status_sort_id_active_idx
+  on public.photos (album_id, status, sort_order desc, id desc)
   where deleted_at is null;
 
 drop index if exists public.photos_album_status_sort_idx;
+drop index if exists public.photos_album_status_sort_active_idx;
 
 -- Painel de administração (ordenação por omissão) e "uploads recentes".
 create index if not exists photos_album_uploaded_active_idx

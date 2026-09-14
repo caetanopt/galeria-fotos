@@ -81,18 +81,20 @@ implantação, para não se repetirem:
    supabase db push
    ```
 
-   Confirmar que todas as migrações em `supabase/migrations/` (0001 a
-   0008 nesta fase) foram aplicadas — em particular a 0005, que liga
+   Confirmar que todas as migrações em `supabase/migrations/` foram
+   aplicadas (0001 a 0009 nesta fase) — em particular a 0005, que liga
    `photos` à publicação `supabase_realtime`; sem ela, o tempo real
    (secção 11) fica silenciosamente inativo.
 
    **Sem a CLI do Supabase à mão?** `docs/operations/migracoes-pendentes.sql`
-   reúne as migrações 0006 a 0008 num único script para colar no SQL
+   reúne as migrações 0006 a 0009 num único script para colar no SQL
    Editor do painel. É idempotente (`if not exists`/`if exists` em todas
    as instruções), por isso é seguro correr sem saber ao certo o que já
-   foi aplicado, e seguro correr mais do que uma vez. Verificado contra
-   um Postgres 16 real: produz exatamente o mesmo esquema que aplicar as
-   migrações 0006, 0007 e 0008 por ordem.
+   foi aplicado, e seguro correr mais do que uma vez. As migrações 0006
+   a 0008 foram verificadas contra um Postgres 16 real (produzem
+   exatamente o mesmo esquema que aplicá-las por ordem); a 0009 foi
+   acrescentada depois ao script, seguindo o mesmo padrão, sem essa
+   verificação contra uma base real.
 
 3. Ativar o fornecedor **Google** em Authentication → Sign In / Providers,
    para o login administrativo (secção 6.1) — distinto do OAuth do Drive.
