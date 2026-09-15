@@ -90,6 +90,14 @@
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
   --radius-card: var(--radius-card);
+  /* Teto de largura da galeria (`max-w-gallery`). Sem ele, a grelha
+     esticava de margem a margem: num monitor de 1900px, seis colunas
+     davam miniaturas de mais de 300px — duas linhas por ecrã, e um
+     álbum de centenas de fotografias a exigir scroll sem fim. A 1600px
+     com oito colunas, cada miniatura fica em ~200px, perto do que já
+     se vê num portátil. O telemóvel não é afetado: o teto só entra
+     acima dele. */
+  --container-gallery: 1600px;
   --font-sans: var(--font-montserrat);
   /* O manual tem uma só tipografia (Montserrat, secção 03.1): títulos e
      texto corrido distinguem-se pelo peso, não pela família. O token

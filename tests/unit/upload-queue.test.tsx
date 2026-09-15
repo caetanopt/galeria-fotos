@@ -391,3 +391,68 @@ describe("UploadQueue com legenda obrigatória", () => {
     await waitFor(() => expect(FakeXHR.instances.length).toBeGreaterThan(0));
   });
 });
+
+describe("UploadQueue — arrastar e largar", () => {
+  /** O componente lê `dataTransfer.types` e `dataTransfer.files`; o
+   * jsdom não constrói um `DragEvent` com `dataTransfer` utilizável,
+   * por isso o evento é montado à mão com só essas duas peças. */
+  function dispatchDrag(type: string, files: File[] = []) {
+    const event = new Event(type, { bubbles: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: { types: ["Files"], files },
+    });
+    window.dispatchEvent(event);
+    return event;
+  }
+
+  it("mostra o aviso de largada enquanto houver ficheiros a ser arrastados", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      dispatchDrag("dragenter");
+    });
+    expect(
+      screen.getByText("Largue as fotografias para as enviar"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      dispatchDrag("dragleave");
+    });
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("envia as fotografias largadas na página", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      dispatchDrag("dragenter");
+      dispatchDrag("drop", [
+        new File(["a"], "arrastada.jpg", { type: "image/jpeg" }),
+      ]);
+    });
+
+    await waitFor(() => expect(FakeXHR.instances).toHaveLength(1));
+    // O aviso desaparece assim que a largada é tratada.
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("um arrastar que não traga ficheiros (texto, uma ligação) é ignorado", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      const event = new Event("dragenter", { bubbles: true });
+      Object.defineProperty(event, "dataTransfer", {
+        value: { types: ["text/plain"], files: [] },
+      });
+      window.dispatchEvent(event);
+    });
+
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
+  });
+});

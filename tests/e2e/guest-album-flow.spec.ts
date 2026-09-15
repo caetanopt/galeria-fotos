@@ -444,3 +444,82 @@ test("um link com legenda obrigatória não deixa o envio começar sem legenda",
 
   await expect.poll(() => uploadCalls.length).toBeGreaterThan(0);
 });
+
+/**
+ * Regressão de desktop: a galeria nasceu desenhada para telemóvel e,
+ * num monitor largo, era simplesmente esticada — seis colunas por
+ * 1900px davam miniaturas de mais de 300px, e a lightbox prendia a
+ * fotografia a 576px de largura. Estes testes fixam os dois limites.
+ */
+test("num ecrã grande, a grelha ganha colunas e não passa do teto de largura", async ({
+  page,
+}) => {
+  await page.route("https://signed.example.com/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(TINY_PNG_BASE64, "base64"),
+    });
+  });
+  const photos = Array.from({ length: 24 }, (_, i) => photoRow(`p${i + 1}`));
+  await mockResolve(page, {
+    permissions: ["view"],
+    initialPhotos: { photos, nextCursor: null, totalCount: photos.length },
+  });
+  await mockEmptyPhotos(page);
+
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/a/token-de-teste");
+
+  const tiles = page.locator('button:has(img[alt="Fotografia do álbum"])');
+  await expect(tiles).toHaveCount(24);
+
+  const grid = page.locator("div.grid").first();
+  const columns = await grid.evaluate(
+    (node) =>
+      getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
+  );
+  expect(columns).toBe(8);
+
+  const gridBox = await grid.boundingBox();
+  expect(gridBox?.width).toBeLessThanOrEqual(1600);
+
+  // O que isto significa na prática: miniaturas de tamanho humano, em
+  // vez de uma por cada 300px de ecrã.
+  const tileBox = await tiles.first().boundingBox();
+  expect(tileBox?.width).toBeLessThan(230);
+});
+
+test("num ecrã grande, a lightbox usa o ecrã em vez de prender a fotografia", async ({
+  page,
+}) => {
+  await page.route("https://signed.example.com/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(TINY_PNG_BASE64, "base64"),
+    });
+  });
+  const photos = Array.from({ length: 6 }, (_, i) => photoRow(`p${i + 1}`));
+  await mockResolve(page, {
+    permissions: ["view"],
+    initialPhotos: { photos, nextCursor: null, totalCount: photos.length },
+  });
+  await mockEmptyPhotos(page);
+
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/a/token-de-teste");
+
+  await page
+    .locator('button:has(img[alt="Fotografia do álbum"])')
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+
+  const slide = dialog.locator('img[alt="Fotografia do álbum"]').first();
+  const box = await slide.boundingBox();
+  // Antes desta correção o teto era `max-w-xl`: 576px, aconteça o que
+  // acontecer ao tamanho da janela.
+  expect(box?.width ?? 0).toBeGreaterThan(900);
+});

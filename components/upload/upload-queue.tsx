@@ -148,6 +148,7 @@ export function UploadQueue({
   const queryClient = useQueryClient();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const xhrByItemId = useRef(new Map<string, XMLHttpRequest>());
   const activeCountRef = useRef(0);
   const previewUrls = useRef<string[]>([]);
@@ -430,6 +431,65 @@ export function UploadQueue({
     setItems((current) => current.filter((item) => item.id !== itemId));
   }
 
+  /**
+   * Arrastar e largar em toda a página (secção 10.3), que só existe no
+   * desktop — num telemóvel não há de onde arrastar. A alternativa
+   * seria uma zona de largada desenhada algures na página, mas isso
+   * obrigava a acertar num alvo; o alvo passa a ser a janela inteira,
+   * e o aviso só aparece quando há mesmo ficheiros a ser arrastados.
+   *
+   * Os listeners ficam na janela (e não num elemento) para apanhar o
+   * arrastar por cima da galeria, que ocupa a página quase toda. O
+   * contador existe porque `dragleave` também dispara ao passar de um
+   * elemento filho para outro: sem ele, o aviso piscava a cada
+   * fronteira atravessada pelo cursor.
+   */
+  const handleFilesRef = useRef(handleFilesSelected);
+  useEffect(() => {
+    handleFilesRef.current = handleFilesSelected;
+  });
+
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (event: DragEvent) =>
+      event.dataTransfer?.types.includes("Files") ?? false;
+
+    function onDragEnter(event: DragEvent) {
+      if (!hasFiles(event)) return;
+      depth += 1;
+      setIsDraggingFiles(true);
+    }
+    function onDragOver(event: DragEvent) {
+      if (!hasFiles(event)) return;
+      // Sem isto o browser abre o ficheiro largado em vez de o
+      // entregar à aplicação — é o comportamento por omissão.
+      event.preventDefault();
+    }
+    function onDragLeave(event: DragEvent) {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setIsDraggingFiles(false);
+    }
+    function onDrop(event: DragEvent) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setIsDraggingFiles(false);
+      handleFilesRef.current(event.dataTransfer?.files ?? null);
+    }
+
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
+
   const doneCount = items.filter((item) => item.status === "done").length;
   const awaitingCaption = items.filter(
     (item) => item.status === "awaiting_caption",
@@ -462,7 +522,23 @@ export function UploadQueue({
     // Botão flutuante fixo em baixo, em vez de um campo inline no topo
     // da página — a fila de miniaturas (quando há envios em curso)
     // aparece por cima do botão, dentro do mesmo grupo fixo.
-    <div className="fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+    //
+    // A partir de `lg` encosta ao canto inferior direito: ao centro,
+    // num monitor largo, ficava exatamente por cima das fotografias do
+    // meio da grelha, que é para onde se olha. No telemóvel mantém-se
+    // ao centro, ao alcance do polegar.
+    <div className="fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] lg:inset-x-auto lg:right-6 lg:items-end lg:px-0 lg:pb-6">
+      {/* `pointer-events-none`: o aviso cobre a página toda, e não pode
+          ser ele a apanhar a largada — quem trata disso é o listener da
+          janela. */}
+      {isDraggingFiles && (
+        <div className="bg-brand-950/70 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-8 backdrop-blur-sm">
+          <p className="rounded-card border-2 border-dashed border-white/60 px-10 py-8 text-center text-lg font-semibold text-white">
+            Largue as fotografias para as enviar
+          </p>
+        </div>
+      )}
+
       {selectionError && (
         <p
           role="alert"
@@ -769,6 +845,10 @@ export function UploadQueue({
       {items.length === 0 && (
         <p className="text-foreground/60 bg-surface/70 rounded-full px-3 py-1 text-center text-xs shadow-sm backdrop-blur">
           Máximo de {MAX_FILES} fotografias de cada vez.
+          <span className="hidden lg:inline">
+            {" "}
+            Também pode arrastá-las para aqui.
+          </span>
         </p>
       )}
     </div>

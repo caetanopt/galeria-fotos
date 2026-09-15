@@ -61,7 +61,24 @@ export function AlbumResolver({ token }: { token: string }) {
       {/* Com fotografia de capa, o cabeçalho é de margem a margem (sem
           padding lateral nem largura máxima) — a fotografia é o
           elemento de abertura do álbum e ganha em ocupar o ecrã todo.
-          Sem capa, mantém-se o cartão centrado com margens. */}
+          Sem capa, mantém-se o cartão centrado com margens.
+
+          A partir de `sm`, a altura passa a ser uma FRAÇÃO DA JANELA
+          com mínimo e máximo, em vez dos 384px fixos de antes. Num
+          monitor de 1080px de altura, a capa fixa ocupava mais de um
+          terço do ecrã e empurrava a galeria para baixo da dobra —
+          via-se a capa e uma linha e meia de fotografias. Ligada à
+          altura da janela, encolhe nos portáteis baixos (onde o espaço
+          vertical é escasso) sem ficar perdida nos monitores grandes.
+
+          Uma proporção fixa (`aspect-[21/9]`) foi tentada primeiro e
+          não servia: acima de ~1030px de largura o teto de altura
+          passava sempre à frente, e o resultado era igual ao valor
+          fixo que se queria substituir.
+
+          O telemóvel mantém a altura fixa: aí `vh` compete com a barra
+          de endereço do browser, que aparece e desaparece com o
+          scroll. */}
       <header
         className={
           album.coverPhotoUrl
@@ -70,7 +87,7 @@ export function AlbumResolver({ token }: { token: string }) {
         }
       >
         {album.coverPhotoUrl ? (
-          <div className="relative h-72 w-full sm:h-96">
+          <div className="relative h-72 w-full sm:h-[38vh] sm:max-h-[26rem] sm:min-h-[18rem]">
             {/* eslint-disable-next-line @next/next/no-img-element -- URL assinado do Supabase Storage, gerado por pedido (secção 5.4); decorativa, o título ao lado já descreve o álbum. */}
             <img
               src={album.coverPhotoUrl}
@@ -82,7 +99,12 @@ export function AlbumResolver({ token }: { token: string }) {
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <div className="rounded-card border-border/40 bg-surface/60 absolute inset-x-3 bottom-3 border p-5 text-center shadow-lg backdrop-blur-md sm:inset-x-6 sm:bottom-6 sm:p-6">
+            {/* `max-w-3xl` + `mx-auto`: num monitor largo, um cartão de
+                margem a margem esticava quase 1900px para conter um
+                título centrado e uma data — uma faixa quase toda
+                vazia. No telemóvel nada muda, porque o ecrã nunca
+                chega ao limite. */}
+            <div className="rounded-card border-border/40 bg-surface/60 absolute inset-x-3 bottom-3 mx-auto max-w-3xl border p-5 text-center shadow-lg backdrop-blur-md sm:inset-x-6 sm:bottom-6 sm:p-6">
               <div
                 aria-hidden="true"
                 className="mb-4 flex items-center justify-center gap-3"
@@ -133,8 +155,12 @@ export function AlbumResolver({ token }: { token: string }) {
         )}
       </header>
 
+      {/* A folga no fim da grelha existe para o botão flutuante de
+          envio não tapar as últimas fotografias. A partir de `lg` ele
+          encosta ao canto, deixa de estar por cima da grelha, e a
+          folga pode encolher para quase nada. */}
       <div
-        className={`flex flex-1 flex-col ${canUpload ? "pb-36 sm:pb-40" : ""}`}
+        className={`flex flex-1 flex-col ${canUpload ? "pb-36 sm:pb-40 lg:pb-12" : ""}`}
       >
         <PhotoGrid
           albumId={album.id}

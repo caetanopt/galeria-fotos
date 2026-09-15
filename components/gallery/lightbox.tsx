@@ -206,7 +206,15 @@ export function Lightbox({
             <div
               key={slidePhoto.id}
               aria-hidden={!isCurrent}
-              className={`rounded-card absolute top-1/2 left-1/2 h-[68%] w-[78%] max-w-xl overflow-hidden bg-black/30 shadow-2xl transition-[transform,opacity] duration-300 sm:w-[62%] ${isCurrent ? "" : "pointer-events-none"}`}
+              // `max-w-xl` (576px) prendia a fotografia a menos de um
+              // terço de um monitor de 1900px: clicar numa miniatura
+              // abria uma imagem mais pequena do que o preview, com
+              // preto à volta. O teto passa a ser alto e a altura sobe
+              // a partir de `lg`, para a fotografia usar o espaço
+              // vertical que um ecrã largo tem de sobra. As fotografias
+              // vizinhas continuam a espreitar, porque o deslocamento é
+              // relativo à largura do slide, não absoluto.
+              className={`rounded-card absolute top-1/2 left-1/2 h-[68%] w-[78%] overflow-hidden bg-black/30 shadow-2xl transition-[transform,opacity] duration-300 sm:w-[62%] lg:h-[86%] lg:w-[64%] lg:max-w-[1400px] ${isCurrent ? "" : "pointer-events-none"}`}
               style={{
                 transform: `translate(-50%, -50%) translateX(${offset * 88}%) scale(${isCurrent ? 1 : 0.85})`,
                 opacity: isCurrent ? 1 : 0.45,
