@@ -26,6 +26,40 @@ describe("env validation", () => {
     resetEnvCacheForTests();
   });
 
+  it("trata variáveis opcionais vazias como ausentes", () => {
+    // Colar o bloco do .env.example (ou o painel da Vercel) deixa estas
+    // chaves presentes com valor vazio. Antes disto, qualquer uma delas
+    // falhava a validação e derrubava a aplicação no arranque — por
+    // causa de variáveis que são opcionais.
+    Object.assign(process.env, validEnv, {
+      UPSTASH_REDIS_REST_URL: "",
+      UPSTASH_REDIS_REST_TOKEN: "",
+      SENTRY_DSN: "",
+      CRON_SECRET: "",
+      ADMIN_EMAILS: "",
+    });
+
+    const env = getServerEnv();
+
+    expect(env.UPSTASH_REDIS_REST_URL).toBeUndefined();
+    expect(env.UPSTASH_REDIS_REST_TOKEN).toBeUndefined();
+    expect(env.SENTRY_DSN).toBeUndefined();
+    expect(env.CRON_SECRET).toBeUndefined();
+    expect(env.ADMIN_EMAILS).toEqual([]);
+  });
+
+  it("usa o valor por omissão quando NEXT_PUBLIC_APP_URL vem vazia", () => {
+    Object.assign(process.env, validEnv, { NEXT_PUBLIC_APP_URL: "" });
+
+    expect(getServerEnv().NEXT_PUBLIC_APP_URL).toBe("http://localhost:3000");
+  });
+
+  it("continua a rejeitar uma variável obrigatória deixada vazia", () => {
+    Object.assign(process.env, validEnv, { APP_TOKEN_PEPPER: "" });
+
+    expect(() => getServerEnv()).toThrow(/APP_TOKEN_PEPPER/);
+  });
+
   it("valida com sucesso quando todas as variáveis obrigatórias existem", () => {
     Object.assign(process.env, validEnv);
 

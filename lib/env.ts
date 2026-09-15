@@ -75,6 +75,30 @@ function formatZodError(error: z.ZodError): string {
   return `Configuração de ambiente inválida:\n${issues}`;
 }
 
+/**
+ * Um `.env` (ou o painel da Vercel) representa "não configurado" com a
+ * chave presente e o valor vazio — é o que sai de colar o bloco do
+ * `.env.example` sem preencher as linhas opcionais. Para o Zod, porém,
+ * `""` é um valor presente e inválido, e as variáveis OPCIONAIS
+ * (`UPSTASH_*`, `SENTRY_DSN`, `CRON_SECRET`) passavam a rebentar a
+ * validação — o que derruba a aplicação inteira no arranque, via
+ * `instrumentation.ts`, por causa de algo que era suposto ser opcional.
+ *
+ * Tratar vazio como ausente resolve isso e não enfraquece nada: uma
+ * variável obrigatória deixada vazia continua a falhar, apenas com a
+ * mensagem mais clara de "em falta" em vez de "demasiado curta".
+ */
+function withoutEmptyValues(
+  source: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const result: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "string" && value.trim() === "") continue;
+    result[key] = value;
+  }
+  return result;
+}
+
 let cachedServerEnv: ServerEnv | undefined;
 let cachedPublicEnv: PublicEnv | undefined;
 
@@ -86,7 +110,7 @@ let cachedPublicEnv: PublicEnv | undefined;
 export function getServerEnv(): ServerEnv {
   if (cachedServerEnv) return cachedServerEnv;
 
-  const parsed = serverEnvSchema.safeParse(process.env);
+  const parsed = serverEnvSchema.safeParse(withoutEmptyValues(process.env));
   if (!parsed.success) {
     throw new Error(formatZodError(parsed.error));
   }
@@ -102,11 +126,13 @@ export function getServerEnv(): ServerEnv {
 export function getPublicEnv(): PublicEnv {
   if (cachedPublicEnv) return cachedPublicEnv;
 
-  const parsed = publicEnvSchema.safeParse({
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  });
+  const parsed = publicEnvSchema.safeParse(
+    withoutEmptyValues({
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    }),
+  );
   if (!parsed.success) {
     throw new Error(formatZodError(parsed.error));
   }
