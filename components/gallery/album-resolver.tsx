@@ -164,7 +164,11 @@ export function AlbumResolver({ token }: { token: string }) {
       >
         <PhotoGrid
           albumId={album.id}
-          downloadEnabled={album.downloadEnabled}
+          // Da PERMISSÃO do link, não do interruptor do álbum: um
+          // álbum com transferências ligadas pode ter um link que as
+          // não dá. A resolução já cruza os dois (`resolve-album.ts`),
+          // por isso aqui basta a permissão.
+          downloadEnabled={permissions.includes("download")}
           isOwner={isOwner}
           initialPhotos={initialPhotos}
         />

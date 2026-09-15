@@ -13,6 +13,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   view: "Ver",
   upload: "Enviar fotografias",
   moderate: "Moderar",
+  download: "Transferir fotografias",
 };
 
 /**

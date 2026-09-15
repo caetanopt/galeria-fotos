@@ -9,7 +9,8 @@ export type ProfileRole = "admin" | "editor";
 export type GoogleConnectionStatus = "active" | "revoked" | "error";
 export type AlbumVisibility = "private" | "unlisted" | "public";
 export type AlbumStatus = "draft" | "published" | "archived";
-export type AlbumSessionPermission = "view" | "upload" | "moderate";
+export type AlbumSessionPermission =
+  "view" | "upload" | "moderate" | "download";
 export type PhotoStatus =
   | "queued"
   | "uploading"

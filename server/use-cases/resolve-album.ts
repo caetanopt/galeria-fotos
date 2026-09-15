@@ -128,9 +128,14 @@ export async function resolveAlbumSession(
     );
   }
 
-  const permissions = album.upload_enabled
-    ? link.permissions
-    : link.permissions.filter((permission) => permission !== "upload");
+  // O álbum manda sobre o link: desligar os envios ou as transferências
+  // no álbum tem de valer também para os links já distribuídos, senão
+  // desligá-los no painel não teria efeito nenhum sobre eles.
+  const permissions = link.permissions.filter(
+    (permission) =>
+      (permission !== "upload" || album.upload_enabled) &&
+      (permission !== "download" || album.download_enabled),
+  );
 
   // Sem permissão de envio não há legenda a exigir — e é isso que
   // fica gravado na sessão, para o caso de o álbum ter desligado os

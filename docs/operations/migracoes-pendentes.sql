@@ -1,5 +1,5 @@
 -- =====================================================================
--- LiveGallery — migrações pendentes em produção (0006 a 0010)
+-- LiveGallery — migrações pendentes em produção (0006 a 0011)
 --
 -- COMO USAR: abrir o painel do Supabase → SQL Editor → colar isto tudo
 -- → Run. Demora menos de um segundo num álbum desta dimensão.
@@ -8,7 +8,7 @@
 -- que já foi aplicado: cada instrução usa "if not exists"/"if exists",
 -- por isso o que já existir é simplesmente ignorado, sem erro.
 --
--- Corresponde ao estado final das migrações 0006 a 0010 do
+-- Corresponde ao estado final das migrações 0006 a 0011 do
 -- repositório. A 0007 não aparece aqui porque a 0008 substitui o índice
 -- que ela criava, e o índice de ordenação da 0008 aparece já na forma
 -- final que a 0009 lhe deu — criá-los primeiro só para os apagar a
@@ -95,6 +95,37 @@ alter table public.album_sessions
 
 alter table public.photos
   add column if not exists caption text;
+
+-- ---------------------------------------------------------------------
+-- 0011 — "download" passa a ser uma permissão do link de partilha
+--
+-- A restrição antiga só aceitava 'view', 'upload' e 'moderate', por
+-- isso tem de ser substituída antes de o código novo poder gravar um
+-- link com transferência.
+--
+-- ATENÇÃO: os links que já existem ficam SEM transferência a partir do
+-- momento em que o código novo entrar, mesmo que o álbum a tenha
+-- ativada — eles têm '{view}' ou '{view,upload}'. É o comportamento
+-- pretendido (por omissão não se transfere); para repor a
+-- transferência num link antigo, cria-se um link novo com a opção
+-- marcada.
+--
+-- Não há perda de dados: só se alarga o que a restrição aceita.
+-- ---------------------------------------------------------------------
+
+alter table public.album_share_links
+  drop constraint if exists album_share_links_permissions_check;
+
+alter table public.album_share_links
+  add constraint album_share_links_permissions_check
+  check (permissions <@ array['view', 'upload', 'moderate', 'download']::text[]);
+
+alter table public.album_sessions
+  drop constraint if exists album_sessions_permissions_check;
+
+alter table public.album_sessions
+  add constraint album_sessions_permissions_check
+  check (permissions <@ array['view', 'upload', 'moderate', 'download']::text[]);
 
 -- =====================================================================
 -- CONFIRMAR QUE CORREU BEM

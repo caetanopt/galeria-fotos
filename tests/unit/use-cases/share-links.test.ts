@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEnvCacheForTests } from "@/lib/env";
+import type { AlbumSessionPermission } from "@/lib/db/database.types";
 import {
   createShareLink,
   listShareLinksForAlbum,
@@ -73,7 +74,7 @@ describe("createShareLink", () => {
       pin_hash: null,
       encrypted_token: null,
       token_key_version: null,
-      permissions: ["view"] satisfies ("view" | "upload" | "moderate")[],
+      permissions: ["view"] satisfies AlbumSessionPermission[],
       require_caption: false,
       expires_at: null,
       revoked_at: null,

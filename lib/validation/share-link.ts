@@ -1,6 +1,15 @@
 import { z } from "zod";
 
-export const shareLinkPermissionSchema = z.enum(["view", "upload", "moderate"]);
+export const shareLinkPermissionSchema = z.enum([
+  "view",
+  "upload",
+  "moderate",
+  // Transferir É uma capacidade, ao contrário da legenda obrigatória
+  // abaixo — por isso vive aqui, e não numa opção à parte (migração
+  // 0011). Fica de fora por omissão, porque o valor por omissão de
+  // `permissions` é ["view"].
+  "download",
+]);
 
 export const createShareLinkSchema = z.object({
   permissions: z

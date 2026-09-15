@@ -107,6 +107,46 @@ test("mostra a área de envio de fotografias quando a sessão tem permissão de 
   await expect(page.getByText("Escolher ou tirar fotografias")).toBeVisible();
 });
 
+test("o botão de transferir só aparece quando o link dá essa permissão", async ({
+  page,
+}) => {
+  await page.route("https://signed.example.com/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(TINY_PNG_BASE64, "base64"),
+    });
+  });
+  const photos = [photoRow("p1")];
+  await mockEmptyPhotos(page);
+
+  // Sem a permissão: o álbum permite transferir, o link não.
+  await mockResolve(page, {
+    permissions: ["view"],
+    initialPhotos: { photos, nextCursor: null, totalCount: 1 },
+  });
+  await page.goto("/a/token-de-teste");
+  await page
+    .locator('button:has(img[alt="Fotografia do álbum"])')
+    .first()
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Transferir" })).toHaveCount(0);
+
+  // Com a permissão: aparece.
+  await mockResolve(page, {
+    permissions: ["view", "download"],
+    initialPhotos: { photos, nextCursor: null, totalCount: 1 },
+  });
+  await page.goto("/a/token-de-teste");
+  await page
+    .locator('button:has(img[alt="Fotografia do álbum"])')
+    .first()
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Transferir" })).toBeVisible();
+});
+
 test("esconde a área de envio de fotografias sem permissão de upload", async ({
   page,
 }) => {

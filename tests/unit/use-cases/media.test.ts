@@ -48,7 +48,10 @@ function makeDeps(
           makeAlbumSessionRow({
             album_id: "album-1",
             user_id: "user-1",
-            permissions: ["view"],
+            // Com "download": é o cenário de um link que permite
+            // transferir (migração 0011). Os testes que querem o
+            // contrário sobrepõem-no explicitamente.
+            permissions: ["view", "download"],
             ...overrides.sessionOverrides,
           }),
         ],
@@ -154,7 +157,7 @@ describe("getOriginalForViewer", () => {
   it("permite pending_review com permissão de moderação", async () => {
     const { deps } = makeDeps({
       photoOverrides: { status: "pending_review" },
-      sessionOverrides: { permissions: ["view", "moderate"] },
+      sessionOverrides: { permissions: ["view", "moderate", "download"] },
     });
 
     const media = await getOriginalForViewer("photo-1", "user-1", deps);
@@ -164,6 +167,28 @@ describe("getOriginalForViewer", () => {
   it("lança ALBUM_DOWNLOAD_DISABLED quando o álbum tem a transferência desativada", async () => {
     const { deps } = makeDeps({
       albumOverrides: { download_enabled: false },
+    });
+
+    await expect(
+      getOriginalForViewer("photo-1", "user-1", deps),
+    ).rejects.toMatchObject({ code: "ALBUM_DOWNLOAD_DISABLED" });
+  });
+
+  it("recusa a transferência quando o link não tem a permissão, mesmo com o álbum a permitir", async () => {
+    const { deps } = makeDeps({
+      albumOverrides: { download_enabled: true },
+      sessionOverrides: { permissions: ["view", "upload"] },
+    });
+
+    await expect(
+      getOriginalForViewer("photo-1", "user-1", deps),
+    ).rejects.toMatchObject({ code: "ALBUM_DOWNLOAD_DISABLED" });
+  });
+
+  it("o álbum manda sobre o link: desligar a transferência no álbum corta um link que a tinha", async () => {
+    const { deps } = makeDeps({
+      albumOverrides: { download_enabled: false },
+      sessionOverrides: { permissions: ["view", "download"] },
     });
 
     await expect(
