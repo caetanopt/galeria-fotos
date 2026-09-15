@@ -41,6 +41,12 @@
      sobre o escurecimento da miniatura). */
   --color-accent: #00aeef;
 
+  /* Cor do logótipo. A secção 04.3 do manual mostra o wordmark em azul
+     profundo sobre fundos claros e a branco sobre fundos escuros — daí
+     um token próprio em vez de reaproveitar o texto ou a cor de marca:
+     nenhum dos dois dá as duas respostas certas. */
+  --color-wordmark: #002e5d;
+
   /* Ultra branco + tints do cinza médio #9CAEB8 do manual. */
   --color-surface: #ffffff;
   --color-surface-muted: #ebeff1;
@@ -79,6 +85,7 @@
   --color-surface-muted: var(--color-surface-muted);
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
+  --color-wordmark: var(--color-wordmark);
   --color-danger: var(--color-danger);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
@@ -122,6 +129,10 @@
        superfície (3.6:1) sem perder o texto branco por cima (4.9:1). */
     --color-brand-600: #0078b2;
     --color-brand-700: #00669b;
+
+    /* Branco sobre fundo escuro (secção 04.3). O azul profundo do
+       ficheiro original seria praticamente invisível aqui. */
+    --color-wordmark: #ffffff;
 
     /* Tints claros do verde eco e do laranja do manual: sobre fundo
        escuro dão 9:1 e 10.5:1, onde as versões escuras do modo claro

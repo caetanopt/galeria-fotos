@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CaetanoWordmark } from "@/components/brand/caetano-wordmark";
 
 /**
  * Porta de entrada do domínio. Não é uma página de apresentação do
@@ -17,9 +18,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-10 px-6 py-24 text-center">
       <div className="flex flex-col items-center gap-4">
-        <p className="text-brand-600 text-xs font-bold tracking-[0.25em] uppercase">
-          Caetano
-        </p>
+        <CaetanoWordmark className="text-wordmark h-7 w-auto sm:h-8" />
         <h1 className="text-foreground font-display text-4xl font-bold tracking-tight sm:text-5xl">
           LiveGallery
         </h1>
