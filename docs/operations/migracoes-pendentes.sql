@@ -1,5 +1,5 @@
 -- =====================================================================
--- LiveGallery — migrações pendentes em produção (0006 a 0009)
+-- LiveGallery — migrações pendentes em produção (0006 a 0010)
 --
 -- COMO USAR: abrir o painel do Supabase → SQL Editor → colar isto tudo
 -- → Run. Demora menos de um segundo num álbum desta dimensão.
@@ -8,7 +8,7 @@
 -- que já foi aplicado: cada instrução usa "if not exists"/"if exists",
 -- por isso o que já existir é simplesmente ignorado, sem erro.
 --
--- Corresponde ao estado final das migrações 0006 a 0009 do
+-- Corresponde ao estado final das migrações 0006 a 0010 do
 -- repositório. A 0007 não aparece aqui porque a 0008 substitui o índice
 -- que ela criava, e o índice de ordenação da 0008 aparece já na forma
 -- final que a 0009 lhe deu — criá-los primeiro só para os apagar a
@@ -73,16 +73,44 @@ create index if not exists photos_album_sha256_active_idx
 
 drop index if exists public.photos_album_sha256_idx;
 
+-- ---------------------------------------------------------------------
+-- 0010 — Legenda obrigatória por link de partilha
+--
+-- Sem isto, o código que exige legendas não arranca: ao resolver um
+-- link, o servidor grava uma sessão com `require_caption`, e uma coluna
+-- em falta faz falhar a abertura do álbum para QUALQUER convidado — não
+-- só nos links com legenda obrigatória. É por isso a migração mais
+-- urgente deste ficheiro se o código novo já estiver em produção.
+--
+-- Todas as colunas têm valor por omissão ou são anuláveis: links,
+-- sessões e fotografias que já existem mantêm o comportamento atual
+-- (docs/decisions/0049).
+-- ---------------------------------------------------------------------
+
+alter table public.album_share_links
+  add column if not exists require_caption boolean not null default false;
+
+alter table public.album_sessions
+  add column if not exists require_caption boolean not null default false;
+
+alter table public.photos
+  add column if not exists caption text;
+
 -- =====================================================================
 -- CONFIRMAR QUE CORREU BEM
--- Correr isto a seguir; deve devolver 6 linhas (2 colunas + 4 índices).
+-- Correr isto a seguir; deve devolver 9 linhas (5 colunas + 4 índices).
 -- =====================================================================
 
--- select 'coluna: ' || column_name as resultado
+-- select 'coluna: ' || table_name || '.' || column_name as resultado
 --   from information_schema.columns
 --  where table_schema = 'public'
---    and table_name = 'album_share_links'
---    and column_name in ('encrypted_token', 'token_key_version')
+--    and (
+--      (table_name = 'album_share_links'
+--       and column_name in ('encrypted_token', 'token_key_version',
+--                           'require_caption'))
+--      or (table_name = 'album_sessions' and column_name = 'require_caption')
+--      or (table_name = 'photos' and column_name = 'caption')
+--    )
 -- union all
 -- select 'índice: ' || indexname
 --   from pg_indexes
