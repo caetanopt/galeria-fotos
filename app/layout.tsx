@@ -22,7 +22,12 @@ export const metadata: Metadata = {
     template: "%s · LiveGallery",
   },
   description:
-    "Crie e partilhe galerias de fotografias de eventos em tempo real.",
+    "Galerias de fotografias de eventos, partilhadas por link e atualizadas em tempo real.",
+  // Nada nesta aplicação deve aparecer em motores de busca. Vale para o
+  // site todo, não só para a página inicial: os álbuns são partilhados
+  // por links não listados (secção 6.3), e um `/a/<token>` indexado
+  // tornaria público um álbum que era para ser só de quem tem o link.
+  robots: { index: false, follow: false },
 };
 
 // viewportFit "cover" + os utilitários de safe-area em globals.css
@@ -34,8 +39,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0a09" },
+    // Acompanham --background em globals.css (paleta Caetano, ADR 0048).
+    { media: "(prefers-color-scheme: light)", color: "#f4f8fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#071a2e" },
   ],
 };
 
