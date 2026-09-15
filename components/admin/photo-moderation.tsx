@@ -352,13 +352,27 @@ export function PhotoModeration({ albumId }: { albumId: string }) {
                     // eslint-disable-next-line @next/next/no-img-element -- URL assinado de um domínio de Storage dinâmico (por instalação); ver docs/decisions/0005.
                     <img
                       src={photo.thumbnailUrl}
-                      alt="Fotografia do álbum"
+                      alt={photo.caption ?? "Fotografia do álbum"}
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   )}
                 </div>
               </div>
+
+              {/* A legenda vem de quem enviou (ver `caption` em
+                  `AdminPhotoView`). Fica acima dos estados porque é o que
+                  identifica a fotografia quando o link foi criado com
+                  legenda obrigatória — ex.: "Concessão Porto". Renderizada
+                  como texto, nunca como HTML (secção 15). */}
+              {photo.caption && (
+                <p
+                  title={photo.caption}
+                  className="text-foreground line-clamp-2 text-xs font-medium"
+                >
+                  {photo.caption}
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center gap-1 text-xs">
                 <span className="bg-surface-muted text-foreground/70 rounded-full px-2 py-0.5">

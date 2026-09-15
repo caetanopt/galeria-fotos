@@ -7,6 +7,9 @@ export const createShareLinkSchema = z.object({
     .array(shareLinkPermissionSchema)
     .min(1, "Escolha pelo menos uma permissão.")
     .default(["view"]),
+  // Exigência sobre quem já tem "upload", não uma permissão nova — por
+  // isso fica fora do array `permissions` (ver migração 0010).
+  requireCaption: z.boolean().default(false),
   pin: z
     .string()
     .trim()

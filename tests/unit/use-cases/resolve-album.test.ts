@@ -58,6 +58,7 @@ function setup(
       encrypted_token: null,
       token_key_version: null,
       permissions: ["view"],
+      require_caption: false,
       expires_at: null,
       revoked_at: null,
       created_by: "owner-1",

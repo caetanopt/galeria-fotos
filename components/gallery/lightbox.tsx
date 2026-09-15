@@ -217,7 +217,16 @@ export function Lightbox({
                 // eslint-disable-next-line @next/next/no-img-element -- URL assinado de um domínio de Storage dinâmico (por instalação); ver docs/decisions/0005.
                 <img
                   src={slidePhoto.previewUrl}
-                  alt={isCurrent ? "Fotografia do álbum" : ""}
+                  // A legenda é o texto alternativo configurável que a
+                  // secção 17 pede; sem ela, a descrição neutra de
+                  // sempre — nunca o nome do ficheiro. Vazio quando não
+                  // é o slide atual, para o leitor de ecrã não anunciar
+                  // as fotografias vizinhas.
+                  alt={
+                    isCurrent
+                      ? (slidePhoto.caption ?? "Fotografia do álbum")
+                      : ""
+                  }
                   className="h-full w-full object-contain"
                 />
               ) : (
@@ -255,6 +264,12 @@ export function Lightbox({
       </div>
 
       <div className="flex flex-col items-center gap-3 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        {photo.caption && (
+          <p className="max-w-2xl text-center text-base font-medium text-balance text-white">
+            {photo.caption}
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white/70">
           <span>
             Enviada em {new Date(photo.uploadedAt).toLocaleDateString("pt-PT")}

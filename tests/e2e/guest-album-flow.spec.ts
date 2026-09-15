@@ -40,6 +40,7 @@ const RESOLVED_ALBUM = {
     coverPhotoUrl: null as string | null,
   },
   permissions: ["view", "upload"],
+  requireCaption: false,
   isOwner: false,
   // A primeira página vem já na resolução do link (ADR 0041) — os
   // testes que precisam de fotografias substituem isto via `overrides`.
@@ -404,4 +405,42 @@ test("mostra o contador e filtra pelas fotografias do próprio convidado", async
   // E voltar atrás repõe a lista completa.
   await page.getByRole("button", { name: "Todas as fotos" }).click();
   await expect(page.getByText("3 fotografias")).toBeVisible();
+});
+
+test("um link com legenda obrigatória não deixa o envio começar sem legenda", async ({
+  page,
+}) => {
+  await mockResolve(page, { requireCaption: true });
+  await mockEmptyPhotos(page);
+
+  // Se alguma destas rotas for chamada antes da legenda, o portão da
+  // fila falhou — é exatamente isso que este teste vigia.
+  const uploadCalls: string[] = [];
+  await page.route("**/api/albums/*/uploads**", async (route) => {
+    uploadCalls.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { uploadId: "upload-1" }, error: null }),
+    });
+  });
+
+  await page.goto("/a/token-de-teste");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(TINY_PNG_BASE64, "base64"),
+  });
+
+  await expect(page.getByLabel("Legenda de foto.png")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Falta preencher alguma legenda" }),
+  ).toBeDisabled();
+  expect(uploadCalls).toEqual([]);
+
+  await page.getByLabel("Legenda de foto.png").fill("Concessão Porto");
+  await page.getByRole("button", { name: /^Enviar 1 / }).click();
+
+  await expect.poll(() => uploadCalls.length).toBeGreaterThan(0);
 });

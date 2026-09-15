@@ -52,7 +52,8 @@ export function AlbumResolver({ token }: { token: string }) {
     );
   }
 
-  const { album, permissions, isOwner, initialPhotos } = mutation.data;
+  const { album, permissions, requireCaption, isOwner, initialPhotos } =
+    mutation.data;
   const canUpload = permissions.includes("upload");
 
   return (
@@ -143,7 +144,9 @@ export function AlbumResolver({ token }: { token: string }) {
         />
       </div>
 
-      {canUpload && <UploadQueue albumId={album.id} />}
+      {canUpload && (
+        <UploadQueue albumId={album.id} requireCaption={requireCaption} />
+      )}
     </main>
   );
 }

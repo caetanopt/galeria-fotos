@@ -74,6 +74,7 @@ interface AlbumShareLinkRow {
   encrypted_token: string | null;
   token_key_version: number | null;
   permissions: AlbumSessionPermission[];
+  require_caption: boolean;
   expires_at: string | null;
   revoked_at: string | null;
   created_by: string;
@@ -86,6 +87,7 @@ interface AlbumSessionRow {
   user_id: string;
   share_link_id: string | null;
   permissions: AlbumSessionPermission[];
+  require_caption: boolean;
   expires_at: string;
   created_at: string;
 }
@@ -109,6 +111,7 @@ interface PhotoRow {
   uploaded_at: string;
   status: PhotoStatus;
   moderation_note: string | null;
+  caption: string | null;
   is_featured: boolean;
   sort_order: number;
   error_code: string | null;
@@ -238,6 +241,7 @@ export interface Database {
           | "encrypted_token"
           | "token_key_version"
           | "permissions"
+          | "require_caption"
           | "expires_at"
           | "revoked_at"
           | "created_at"
@@ -250,6 +254,7 @@ export interface Database {
               | "encrypted_token"
               | "token_key_version"
               | "permissions"
+              | "require_caption"
               | "expires_at"
               | "revoked_at"
               | "created_at"
@@ -288,6 +293,7 @@ export interface Database {
           | "uploaded_at"
           | "status"
           | "moderation_note"
+          | "caption"
           | "is_featured"
           | "sort_order"
           | "error_code"
@@ -308,6 +314,7 @@ export interface Database {
               | "uploaded_at"
               | "status"
               | "moderation_note"
+              | "caption"
               | "is_featured"
               | "sort_order"
               | "error_code"

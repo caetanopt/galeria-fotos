@@ -7,6 +7,7 @@ import {
   CLIENT_OPTIMIZE_TRIGGER_BYTES,
   optimizeImageFile,
 } from "@/lib/media/client-image-optimizer";
+import { CAPTION_MAX_LENGTH } from "@/lib/validation/upload";
 
 /**
  * Espelham os valores por omissão de `MAX_UPLOAD_BYTES`/
@@ -47,7 +48,18 @@ const FALLBACK_PREVIEW =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%23e5e0da'/%3E%3Cpath d='M8 34l9-11 7 8 5-6 11 9v2H8z' fill='%23b8ada0'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23b8ada0'/%3E%3C/svg%3E";
 
 type QueueStatus =
-  "optimizing" | "queued" | "uploading" | "done" | "error" | "canceled";
+  | "optimizing"
+  /**
+   * Preparada, mas à espera que lhe escrevam a legenda. Só existe
+   * quando o link a exige: é o portão que impede a fila de arrancar
+   * sozinha antes de haver o que enviar com a fotografia.
+   */
+  | "awaiting_caption"
+  | "queued"
+  | "uploading"
+  | "done"
+  | "error"
+  | "canceled";
 
 interface QueueItem {
   id: string;
@@ -56,6 +68,7 @@ interface QueueItem {
   previewUrl: string;
   status: QueueStatus;
   progress: number;
+  caption: string;
   errorMessage?: string;
   errorCode?: string;
 }
@@ -73,6 +86,7 @@ class UploadHttpError extends Error {
 function uploadFileWithProgress(options: {
   url: string;
   file: File;
+  caption?: string;
   onProgress: (percent: number) => void;
   registerXhr: (xhr: XMLHttpRequest) => void;
 }): Promise<void> {
@@ -112,13 +126,25 @@ function uploadFileWithProgress(options: {
 
     const formData = new FormData();
     formData.append("file", options.file);
+    if (options.caption) formData.append("caption", options.caption);
 
     xhr.open("POST", options.url);
     xhr.send(formData);
   });
 }
 
-export function UploadQueue({ albumId }: { albumId: string }) {
+export function UploadQueue({
+  albumId,
+  requireCaption = false,
+}: {
+  albumId: string;
+  /**
+   * O link exige uma legenda em cada fotografia. Vem da resolução do
+   * link; o servidor volta a exigi-la ao concluir cada envio, por isso
+   * isto é só o que faz a interface pedi-la — não é a garantia.
+   */
+  requireCaption?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -193,6 +219,7 @@ export function UploadQueue({ albumId }: { albumId: string }) {
         await uploadFileWithProgress({
           url: `/api/albums/${albumId}/uploads/${initiated.uploadId}/complete`,
           file: item.file,
+          caption: item.caption.trim() || undefined,
           onProgress: (progress) => updateItem(item.id, { progress }),
           registerXhr: (xhr) => xhrByItemId.current.set(item.id, xhr),
         });
@@ -250,11 +277,15 @@ export function UploadQueue({ albumId }: { albumId: string }) {
       updateItem(item.id, {
         file: optimized,
         previewUrl,
-        status: tooLarge ? "error" : "queued",
+        status: tooLarge
+          ? "error"
+          : requireCaption
+            ? "awaiting_caption"
+            : "queued",
         errorMessage: tooLarge ? TOO_LARGE_MESSAGE : undefined,
       });
     },
-    [updateItem],
+    [updateItem, requireCaption],
   );
 
   /**
@@ -314,6 +345,7 @@ export function UploadQueue({ albumId }: { albumId: string }) {
           previewUrl,
           status: "error",
           progress: 0,
+          caption: "",
           errorMessage: "Formato não suportado. Envie JPEG, PNG ou WebP.",
         };
       }
@@ -327,6 +359,7 @@ export function UploadQueue({ albumId }: { albumId: string }) {
           previewUrl,
           status: "optimizing",
           progress: 0,
+          caption: "",
         };
       }
       return {
@@ -334,8 +367,11 @@ export function UploadQueue({ albumId }: { albumId: string }) {
         clientUploadId: crypto.randomUUID(),
         file,
         previewUrl,
-        status: "queued",
+        // Ficheiros pequenos saltam a otimização, por isso o portão da
+        // legenda tem de estar aqui também.
+        status: requireCaption ? "awaiting_caption" : "queued",
         progress: 0,
+        caption: "",
       };
     });
 
@@ -355,8 +391,10 @@ export function UploadQueue({ albumId }: { albumId: string }) {
   }
 
   function handleRetry(itemId: string) {
+    const item = items.find((candidate) => candidate.id === itemId);
+    const needsCaption = requireCaption && !item?.caption.trim();
     updateItem(itemId, {
-      status: "queued",
+      status: needsCaption ? "awaiting_caption" : "queued",
       progress: 0,
       errorMessage: undefined,
       errorCode: undefined,
@@ -364,11 +402,41 @@ export function UploadQueue({ albumId }: { albumId: string }) {
     });
   }
 
+  function handleCaptionChange(itemId: string, caption: string) {
+    updateItem(itemId, { caption });
+  }
+
+  /** Escrever "Concessão Porto" vinte vezes não é trabalho de ninguém. */
+  function applyCaptionToAll(caption: string) {
+    setItems((current) =>
+      current.map((item) =>
+        item.status === "awaiting_caption" ? { ...item, caption } : item,
+      ),
+    );
+  }
+
+  /** Solta para a fila tudo o que já tem legenda; a fila faz o resto. */
+  function releaseCaptioned() {
+    setItems((current) =>
+      current.map((item) =>
+        item.status === "awaiting_caption" && item.caption.trim()
+          ? { ...item, status: "queued" }
+          : item,
+      ),
+    );
+  }
+
   function handleDismiss(itemId: string) {
     setItems((current) => current.filter((item) => item.id !== itemId));
   }
 
   const doneCount = items.filter((item) => item.status === "done").length;
+  const awaitingCaption = items.filter(
+    (item) => item.status === "awaiting_caption",
+  );
+  const allCaptioned =
+    awaitingCaption.length > 0 &&
+    awaitingCaption.every((item) => item.caption.trim().length > 0);
 
   // As falhas mostram a mensagem real do servidor, agrupada por
   // mensagem: sete ficheiros a falhar pela mesma razão são uma linha,
@@ -427,6 +495,80 @@ export function UploadQueue({ albumId }: { albumId: string }) {
         </div>
       )}
 
+      {awaitingCaption.length > 0 && (
+        <div className="rounded-card border-border bg-surface/95 flex w-full max-w-md flex-col gap-3 border p-4 shadow-lg backdrop-blur">
+          <div>
+            <p className="text-foreground text-sm font-medium">
+              {awaitingCaption.length === 1
+                ? "Identifique a fotografia"
+                : `Identifique as ${awaitingCaption.length} fotografias`}
+            </p>
+            <p className="text-foreground/60 text-xs">
+              Este link exige uma legenda em cada fotografia. Sem ela, o envio
+              não começa.
+            </p>
+          </div>
+
+          {awaitingCaption.length > 1 && (
+            <button
+              type="button"
+              onClick={() => applyCaptionToAll(awaitingCaption[0].caption)}
+              disabled={!awaitingCaption[0].caption.trim()}
+              className="border-border text-foreground hover:bg-surface-muted self-start rounded-full border px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Aplicar a primeira legenda a todas
+            </button>
+          )}
+
+          <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+            {awaitingCaption.map((item) => (
+              <li key={item.id} className="flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element -- pré-visualização local via URL.createObjectURL. */}
+                <img
+                  src={item.previewUrl}
+                  alt=""
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = FALLBACK_PREVIEW;
+                  }}
+                  className="bg-surface-muted h-10 w-10 shrink-0 rounded object-cover"
+                />
+                <input
+                  type="text"
+                  value={item.caption}
+                  onChange={(event) =>
+                    handleCaptionChange(item.id, event.target.value)
+                  }
+                  maxLength={CAPTION_MAX_LENGTH}
+                  placeholder="Ex.: Concessão Porto"
+                  aria-label={`Legenda de ${item.file.name}`}
+                  className="border-border bg-background text-foreground placeholder:text-foreground/40 min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDismiss(item.id)}
+                  aria-label={`Remover ${item.file.name}`}
+                  className="text-foreground/50 hover:text-foreground shrink-0 rounded-full p-1 text-xs"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={releaseCaptioned}
+            disabled={!allCaptioned}
+            className="bg-brand-600 hover:bg-brand-700 rounded-full px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {allCaptioned
+              ? `Enviar ${awaitingCaption.length} ${awaitingCaption.length === 1 ? "fotografia" : "fotografias"}`
+              : "Falta preencher alguma legenda"}
+          </button>
+        </div>
+      )}
+
       {items.length > 0 && (
         <ul className="border-border bg-surface/95 rounded-card flex max-w-full gap-1.5 overflow-x-auto border p-1.5 shadow-lg backdrop-blur">
           {items.map((item) => (
@@ -467,6 +609,20 @@ export function UploadQueue({ albumId }: { albumId: string }) {
                   }
                 >
                   <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                </div>
+              )}
+
+              {/* Sem isto, uma fotografia à espera de legenda ficava na
+                  tira igual a uma já enviada — e o painel de legendas em
+                  cima não diz a qual das miniaturas corresponde. */}
+              {item.status === "awaiting_caption" && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-black/40"
+                  aria-label="À espera de legenda"
+                >
+                  <span aria-hidden="true" className="text-xs text-white">
+                    ✎
+                  </span>
                 </div>
               )}
 
