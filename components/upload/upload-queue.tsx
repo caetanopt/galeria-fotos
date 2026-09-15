@@ -407,7 +407,7 @@ export function UploadQueue({
     updateItem(itemId, { caption });
   }
 
-  /** Escrever "Concessão Porto" vinte vezes não é trabalho de ninguém. */
+  /** Escrever a mesma legenda vinte vezes não é trabalho de ninguém. */
   function applyCaptionToAll(caption: string) {
     setItems((current) =>
       current.map((item) =>
@@ -616,7 +616,7 @@ export function UploadQueue({
                     handleCaptionChange(item.id, event.target.value)
                   }
                   maxLength={CAPTION_MAX_LENGTH}
-                  placeholder="Ex.: Concessão Porto"
+                  placeholder="Ex.: local ou momento"
                   aria-label={`Legenda de ${item.file.name}`}
                   className="border-border bg-background text-foreground placeholder:text-foreground/40 min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm"
                 />
