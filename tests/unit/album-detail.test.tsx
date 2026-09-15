@@ -36,10 +36,12 @@ function renderAlbumDetail() {
  * pedido e repunha o título antigo por cima. */
 let serverTitle = INITIAL_TITLE;
 let serverEventStartAt: string | null = null;
+let serverDescription: string | null = null;
 
 beforeEach(() => {
   serverTitle = INITIAL_TITLE;
   serverEventStartAt = null;
+  serverDescription = null;
   vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
     const url = String(input);
     if (url.endsWith("/api/albums/album-1") && !url.includes("?")) {
@@ -47,17 +49,19 @@ beforeEach(() => {
         const body = JSON.parse(init.body as string) as {
           title?: string;
           eventStartAt?: string | null;
+          description?: string | null;
         };
         if (body.title) serverTitle = body.title;
         if ("eventStartAt" in body)
           serverEventStartAt = body.eventStartAt ?? null;
+        if ("description" in body) serverDescription = body.description ?? null;
       }
       return new Response(
         JSON.stringify({
           data: {
             id: "album-1",
             title: serverTitle,
-            description: null,
+            description: serverDescription,
             status: "published",
             event_start_at: serverEventStartAt,
           },
@@ -233,5 +237,83 @@ describe("AlbumDetail — data do evento", () => {
     expect(
       await screen.findByText("Data do evento: não definida"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AlbumDetail — editar descrição do álbum", () => {
+  it("mostra 'Sem descrição' e o botão para a acrescentar quando não há nenhuma", async () => {
+    renderAlbumDetail();
+
+    expect(await screen.findByText("Sem descrição")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Adicionar descrição ao álbum" }),
+    ).toBeInTheDocument();
+  });
+
+  it("guarda a descrição escrita e passa a mostrá-la", async () => {
+    const user = userEvent.setup();
+    renderAlbumDetail();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Adicionar descrição ao álbum",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("Descrição do álbum"),
+      "Fotografias do jantar de equipa",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(
+      await screen.findByText("Fotografias do jantar de equipa"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sem descrição")).not.toBeInTheDocument();
+  });
+
+  it("apagar o texto todo envia null, não uma string vazia", async () => {
+    const user = userEvent.setup();
+    serverDescription = "Descrição a remover";
+    renderAlbumDetail();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Editar descrição do álbum" }),
+    );
+    await user.clear(screen.getByLabelText("Descrição do álbum"));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Sem descrição")).toBeInTheDocument();
+    });
+
+    const patches = vi
+      .mocked(global.fetch)
+      .mock.calls.filter(([, init]) => init?.method === "PATCH");
+    const last = JSON.parse(patches.at(-1)![1]!.body as string) as {
+      description: unknown;
+    };
+    expect(last.description).toBeNull();
+  });
+
+  it("cancelar não envia pedido nenhum e mantém a descrição original", async () => {
+    const user = userEvent.setup();
+    serverDescription = "Descrição original";
+    renderAlbumDetail();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Editar descrição do álbum" }),
+    );
+    await user.type(
+      screen.getByLabelText("Descrição do álbum"),
+      " com mais texto",
+    );
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(screen.getByText("Descrição original")).toBeInTheDocument();
+    expect(
+      vi
+        .mocked(global.fetch)
+        .mock.calls.filter(([, init]) => init?.method === "PATCH"),
+    ).toHaveLength(0);
   });
 });
