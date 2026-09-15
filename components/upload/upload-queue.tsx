@@ -452,7 +452,7 @@ export function UploadQueue({ albumId }: { albumId: string }) {
                 >
                   <div className="h-1 overflow-hidden rounded-full bg-white/30">
                     <div
-                      className="bg-brand-400 h-full transition-all"
+                      className="bg-accent h-full transition-all"
                       style={{ width: `${item.progress}%` }}
                     />
                   </div>

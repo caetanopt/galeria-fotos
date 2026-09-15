@@ -1,20 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Playfair_Display } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Tipografia única da marca (Manual de Identidade Caetano, secção 03.1):
+// "sans-serif contemporânea, com linhas geométricas equilibradas". O
+// manual indica Light/Regular/Bold; carregamos a variável para que os
+// pesos intermédios já usados na interface (500/600) rendam certo em vez
+// de serem sintetizados pelo browser.
+//
+// Substitui a dupla Geist + Playfair Display do tema anterior: a marca
+// não tem serifa, e o manual é explícito em ter uma só família.
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
-});
-
-// Serifa elegante para títulos (secção "estilo de álbum partilhado"),
-// mantendo a Geist Sans para texto corrido e controlos — o mesmo
-// contraste serifa/sem-serifa de um convite impresso.
-const playfairDisplay = Playfair_Display({
-  variable: "--font-serif-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -49,7 +48,7 @@ export default function RootLayout({
     <html
       lang="pt-PT"
       data-scroll-behavior="smooth"
-      className={`${geistSans.variable} ${playfairDisplay.variable} h-full antialiased`}
+      className={`${montserrat.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <Providers>{children}</Providers>

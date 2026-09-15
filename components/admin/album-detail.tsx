@@ -157,7 +157,7 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
                   maxLength={TITLE_MAX_LENGTH}
                   autoFocus
                   aria-label="Nome do álbum"
-                  className="border-border bg-surface text-foreground rounded-md border px-3 py-1.5 font-serif text-2xl font-semibold sm:text-3xl"
+                  className="border-border bg-surface text-foreground font-display rounded-md border px-3 py-1.5 text-2xl font-semibold sm:text-3xl"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-foreground font-serif text-2xl font-semibold text-balance sm:text-3xl">
+              <h1 className="text-foreground font-display text-2xl font-semibold text-balance sm:text-3xl">
                 {album.title}
               </h1>
               <button

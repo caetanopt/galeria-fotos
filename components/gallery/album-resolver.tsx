@@ -42,7 +42,7 @@ export function AlbumResolver({ token }: { token: string }) {
 
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-24 text-center">
-        <h1 className="text-foreground font-serif text-2xl font-semibold">
+        <h1 className="text-foreground font-display text-2xl font-semibold">
           Álbum indisponível
         </h1>
         <p role="alert" className="text-foreground/70 max-w-md text-sm">
@@ -90,7 +90,7 @@ export function AlbumResolver({ token }: { token: string }) {
                 <span className="bg-brand-600 h-1.5 w-1.5 rounded-full" />
                 <span className="bg-brand-600/40 h-px w-8 sm:w-10" />
               </div>
-              <h1 className="text-foreground font-serif text-2xl font-semibold text-balance sm:text-3xl">
+              <h1 className="text-foreground font-display text-2xl font-semibold text-balance sm:text-3xl">
                 {album.title}
               </h1>
               {album.eventStartAt && (
@@ -115,7 +115,7 @@ export function AlbumResolver({ token }: { token: string }) {
               <span className="bg-brand-600 h-1.5 w-1.5 rounded-full" />
               <span className="bg-brand-600/40 h-px w-10 sm:w-14" />
             </div>
-            <h1 className="text-foreground font-serif text-3xl font-semibold text-balance sm:text-4xl">
+            <h1 className="text-foreground font-display text-3xl font-semibold text-balance sm:text-4xl">
               {album.title}
             </h1>
             {album.eventStartAt && (

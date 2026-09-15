@@ -4,7 +4,7 @@ export default function Home() {
       <span className="bg-brand-50 text-brand-700 rounded-full px-4 py-1 text-sm font-medium">
         Em construção
       </span>
-      <h1 className="text-foreground font-serif text-4xl font-semibold tracking-tight sm:text-5xl">
+      <h1 className="text-foreground font-display text-4xl font-semibold tracking-tight sm:text-5xl">
         LiveGallery
       </h1>
       <p className="text-foreground/70 max-w-xl text-lg">
