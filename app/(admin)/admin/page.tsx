@@ -29,14 +29,6 @@ export default async function AdminDashboardPage() {
             <strong>{profile.display_name ?? profile.email}</strong>.
           </p>
         </div>
-        <form action="/api/auth/signout" method="post">
-          <button
-            type="submit"
-            className="border-border text-foreground hover:bg-surface-muted rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-          >
-            Sair
-          </button>
-        </form>
       </header>
 
       <div className="flex flex-wrap gap-3">

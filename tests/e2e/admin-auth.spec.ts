@@ -32,6 +32,19 @@ test.describe("acesso administrativo sem sessão", () => {
       page.getByRole("button", { name: /entrar com google/i }),
     ).toBeVisible();
   });
+
+  test("a página de login não mostra a navegação de administração", async ({
+    page,
+  }) => {
+    // O cabeçalho comum vive no layout deste mesmo segmento de rotas.
+    // Sem a condição de sessão, ofereceria atalhos (e um "Sair") a quem
+    // ainda não entrou.
+    await page.goto("/admin/login");
+    await expect(
+      page.getByRole("navigation", { name: "Administração" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Sair" })).toHaveCount(0);
+  });
 });
 
 test.describe("respostas de API sem sessão administrativa", () => {
