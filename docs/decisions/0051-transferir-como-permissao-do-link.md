@@ -41,7 +41,7 @@ links já distribuídos, senão o interruptor não teria efeito sobre eles.
 
 `getOriginalForViewer` passa a exigir a permissão **na sessão** e
 continua a verificar o interruptor do álbum. A segunda não é
-redundante: apanha o caso de o álbum ser desligado *depois* de a sessão
+redundante: apanha o caso de o álbum ser desligado _depois_ de a sessão
 ter sido criada, sem ser preciso esperar que ela expire.
 
 A interface deixa de olhar para `album.downloadEnabled` e passa a olhar
