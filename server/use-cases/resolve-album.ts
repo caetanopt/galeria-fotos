@@ -42,6 +42,12 @@ export interface ResolveAlbumResult {
   album: PublicAlbumView;
   permissions: AlbumSessionPermission[];
   /**
+   * O link exige uma legenda em cada fotografia enviada (migração
+   * 0010). A interface usa isto para pedir o campo; a exigência é
+   * validada outra vez no servidor, ao concluir cada envio.
+   */
+  requireCaption: boolean;
+  /**
    * `true` só quando quem abriu o link está autenticado (não anónimo)
    * como o próprio dono do álbum — nunca depende das `permissions` do
    * link de partilha, que também podem ser vistas por um convidado.
@@ -122,9 +128,19 @@ export async function resolveAlbumSession(
     );
   }
 
-  const permissions = album.upload_enabled
-    ? link.permissions
-    : link.permissions.filter((permission) => permission !== "upload");
+  // O álbum manda sobre o link: desligar os envios ou as transferências
+  // no álbum tem de valer também para os links já distribuídos, senão
+  // desligá-los no painel não teria efeito nenhum sobre eles.
+  const permissions = link.permissions.filter(
+    (permission) =>
+      (permission !== "upload" || album.upload_enabled) &&
+      (permission !== "download" || album.download_enabled),
+  );
+
+  // Sem permissão de envio não há legenda a exigir — e é isso que
+  // fica gravado na sessão, para o caso de o álbum ter desligado os
+  // envios depois de o link ser criado.
+  const requireCaption = link.require_caption && permissions.includes("upload");
 
   const isOwner = !ctx.isAnonymous && ctx.userId === album.owner_id;
 
@@ -159,6 +175,7 @@ export async function resolveAlbumSession(
   const isCurrentStillAccurate =
     current !== null &&
     current.share_link_id === link.id &&
+    current.require_caption === requireCaption &&
     samePermissions(current.permissions, permissions);
 
   if (!isCurrentStillAccurate) {
@@ -167,6 +184,7 @@ export async function resolveAlbumSession(
       user_id: ctx.userId,
       share_link_id: link.id,
       permissions,
+      require_caption: requireCaption,
       expires_at: expiresAt,
     });
   }
@@ -182,6 +200,7 @@ export async function resolveAlbumSession(
   return {
     album: toPublicAlbumView(album, coverPhotoUrl),
     permissions,
+    requireCaption,
     isOwner,
     initialPhotos,
   };

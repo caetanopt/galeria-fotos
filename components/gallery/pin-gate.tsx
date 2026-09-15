@@ -24,7 +24,7 @@ export function PinGate({
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-24 text-center">
-      <h1 className="text-foreground font-serif text-2xl font-semibold">
+      <h1 className="text-foreground font-display text-2xl font-semibold">
         Este álbum está protegido por PIN
       </h1>
       <form

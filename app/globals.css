@@ -1,31 +1,68 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafaf9;
-  --foreground: #1c1917;
+  /* Manual de Identidade Caetano (Brand Book, abril 2026), secção 04.
+     Todos os valores abaixo são os códigos digitais (RGB) do manual ou
+     tints derivados da mesma tabela — nada aqui foi inventado. */
 
-  /* Pêssego/terracota, a partir do convite de casamento de referência
-     (monograma e grinalda floral) — 600/700 verificados para contraste
-     AA (>=4.5:1) com texto branco em cima (botões, FAB). */
-  --color-brand-50: #faf6f5;
-  --color-brand-100: #f5eae5;
-  --color-brand-200: #efd3c8;
-  --color-brand-300: #e5b49e;
-  --color-brand-400: #da8d6c;
-  --color-brand-500: #d26d41;
-  --color-brand-600: #ba562c;
-  --color-brand-700: #914322;
-  --color-brand-800: #71371e;
-  --color-brand-900: #552c1b;
-  --color-brand-950: #311b11;
+  --background: #f4f8fb;
+  /* Azul profundo escurecido, não preto: o texto fica na família da
+     marca. A escolha do tom é ditada pela acessibilidade — a interface
+     usa `text-foreground/60` em 24 sítios (legendas, contadores,
+     ajudas), e a 60% sobre superfície clara este valor dá 4.7:1. Com o
+     azul profundo puro dava 4.35:1, que o axe apanhou como violação
+     séria na suíte E2E. */
+  --foreground: #0b1824;
 
+  /* Azul profundo #002E5D — a cor principal da marca (secção 04.1).
+     Os tons 500 a 200 são os tints publicados no manual
+     (#33587d, #66829e, #99abbe, #ccd5df); 700+ são escurecimentos do
+     azul profundo, e 100/50 clareamentos, para completar a escala que
+     o Tailwind precisa.
+
+     O 600 é o tom dos botões e do botão flutuante de envio: 13.6:1 com
+     texto branco por cima, muito acima do mínimo AA de 4.5:1
+     (secção 17 do CLAUDE.md). */
+  --color-brand-50: #eef3f8;
+  --color-brand-100: #dde7f0;
+  --color-brand-200: #ccd5df;
+  --color-brand-300: #99abbe;
+  --color-brand-400: #66829e;
+  --color-brand-500: #33587d;
+  --color-brand-600: #002e5d;
+  --color-brand-700: #00203f;
+  --color-brand-800: #001a34;
+  --color-brand-900: #001328;
+  --color-brand-950: #000c1a;
+
+  /* Azul cyan #00AEEF (secção 04.1, cores secundárias). Só decorativo:
+     2.5:1 com texto branco, por isso nunca serve de fundo a texto —
+     usa-se onde não há texto por cima (barra de progresso do envio,
+     sobre o escurecimento da miniatura). */
+  --color-accent: #00aeef;
+
+  /* Cor do logótipo. A secção 04.3 do manual mostra o wordmark em azul
+     profundo sobre fundos claros e a branco sobre fundos escuros — daí
+     um token próprio em vez de reaproveitar o texto ou a cor de marca:
+     nenhum dos dois dá as duas respostas certas. */
+  --color-wordmark: #002e5d;
+
+  /* Ultra branco + tints do cinza médio #9CAEB8 do manual. */
   --color-surface: #ffffff;
-  --color-surface-muted: #f5f5f4;
-  --color-border: #e7e5e4;
+  --color-surface-muted: #ebeff1;
+  --color-border: #d7dfe3;
 
-  --color-danger: #dc2626;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
+  /* Estados. O manual não tem vermelho, por isso "danger" fica fora da
+     paleta da marca — uma ação destrutiva precisa de vermelho e não há
+     substituto de marca para isso.
+
+     "success" e "warning" são o verde eco #49B489 e o laranja dinâmico
+     #FFA931 do manual, escurecidos até passarem AA como TEXTO sobre
+     fundo claro (é assim que são usados: text-success/text-warning).
+     Nos valores originais dariam 2.6:1 e 1.9:1 — ilegíveis. */
+  --color-danger: #c62828;
+  --color-success: #358364;
+  --color-warning: #a16a1f;
 
   --radius-card: 0.75rem;
 }
@@ -47,12 +84,26 @@
   --color-surface: var(--color-surface);
   --color-surface-muted: var(--color-surface-muted);
   --color-border: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-wordmark: var(--color-wordmark);
   --color-danger: var(--color-danger);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
   --radius-card: var(--radius-card);
-  --font-sans: var(--font-geist-sans);
-  --font-serif: var(--font-serif-display);
+  /* Teto de largura da galeria (`max-w-gallery`). Sem ele, a grelha
+     esticava de margem a margem: num monitor de 1900px, seis colunas
+     davam miniaturas de mais de 300px — duas linhas por ecrã, e um
+     álbum de centenas de fotografias a exigir scroll sem fim. A 1600px
+     com oito colunas, cada miniatura fica em ~200px, perto do que já
+     se vê num portátil. O telemóvel não é afetado: o teto só entra
+     acima dele. */
+  --container-gallery: 1600px;
+  --font-sans: var(--font-montserrat);
+  /* O manual tem uma só tipografia (Montserrat, secção 03.1): títulos e
+     texto corrido distinguem-se pelo peso, não pela família. O token
+     fica separado para que trocar por uma display licenciada no futuro
+     seja uma linha. */
+  --font-display: var(--font-montserrat);
   /* Entrada suave de fotografias recém-chegadas a uma listagem paginada
      (painel de administração) — em vez de simplesmente aparecerem de
      repente entre as já visíveis. Respeita "prefers-reduced-motion"
@@ -74,11 +125,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0c0a09;
-    --foreground: #f5f5f4;
-    --color-surface: #1c1917;
-    --color-surface-muted: #292524;
-    --color-border: #3f3c3a;
+    /* Escurecimentos do azul profundo da marca, não cinzentos neutros. */
+    --background: #071a2e;
+    --foreground: #ebeff1;
+    --color-surface: #0d2743;
+    --color-surface-muted: #143253;
+    --color-border: #1f4166;
+
+    /* O azul profundo desaparecia contra um fundo escuro. Aqui o tom
+       interativo desloca-se para o azul cyan até ficar visível sobre a
+       superfície (3.6:1) sem perder o texto branco por cima (4.9:1). */
+    --color-brand-600: #0078b2;
+    --color-brand-700: #00669b;
+
+    /* Branco sobre fundo escuro (secção 04.3). O azul profundo do
+       ficheiro original seria praticamente invisível aqui. */
+    --color-wordmark: #ffffff;
+
+    /* Tints claros do verde eco e do laranja do manual: sobre fundo
+       escuro dão 9:1 e 10.5:1, onde as versões escuras do modo claro
+       seriam ilegíveis. */
+    --color-success: #92d2b8;
+    --color-warning: #ffcb83;
+    --color-danger: #f28b82;
   }
 }
 

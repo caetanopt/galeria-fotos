@@ -22,8 +22,11 @@ class FakeXHR {
     FakeXHR.instances.push(this);
   }
 
+  sentBody: unknown = null;
   open() {}
-  send() {}
+  send(body?: unknown) {
+    this.sentBody = body ?? null;
+  }
   abort() {
     this.dispatchType("abort");
   }
@@ -301,5 +304,155 @@ describe("UploadQueue", () => {
     );
     expect(galleryInvalidations).toHaveLength(1);
     vi.useRealTimers();
+  });
+});
+
+describe("UploadQueue com legenda obrigatória", () => {
+  function renderWithCaption() {
+    const queryClient = new QueryClient();
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <UploadQueue albumId="album-1" requireCaption />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("não começa a enviar enquanto a legenda não estiver preenchida", async () => {
+    renderWithCaption();
+    await selectFile();
+
+    expect(
+      await screen.findByLabelText("Legenda de foto.jpg"),
+    ).toBeInTheDocument();
+    // O portão é este: nenhum pedido de envio saiu ainda.
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(FakeXHR.instances).toHaveLength(0);
+  });
+
+  it("envia a legenda escrita junto com o ficheiro", async () => {
+    const user = userEvent.setup();
+    renderWithCaption();
+    await selectFile();
+
+    await user.type(
+      await screen.findByLabelText("Legenda de foto.jpg"),
+      "Concessão Porto",
+    );
+    await user.click(screen.getByRole("button", { name: /^Enviar 1 / }));
+
+    await waitFor(() => expect(FakeXHR.instances).toHaveLength(1));
+    const body = FakeXHR.instances[0].sentBody as FormData;
+    expect(body.get("caption")).toBe("Concessão Porto");
+  });
+
+  it("o botão de envio fica bloqueado enquanto faltar uma legenda", async () => {
+    const user = userEvent.setup();
+    renderWithCaption();
+
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await user.upload(input, [
+      new File(["a"], "a.jpg", { type: "image/jpeg" }),
+      new File(["b"], "b.jpg", { type: "image/jpeg" }),
+    ]);
+
+    await user.type(await screen.findByLabelText("Legenda de a.jpg"), "Porto");
+
+    expect(
+      screen.getByRole("button", { name: "Falta preencher alguma legenda" }),
+    ).toBeDisabled();
+    expect(FakeXHR.instances).toHaveLength(0);
+  });
+
+  it("aplica a primeira legenda a todas as fotografias em espera", async () => {
+    const user = userEvent.setup();
+    renderWithCaption();
+
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await user.upload(input, [
+      new File(["a"], "a.jpg", { type: "image/jpeg" }),
+      new File(["b"], "b.jpg", { type: "image/jpeg" }),
+    ]);
+
+    await user.type(await screen.findByLabelText("Legenda de a.jpg"), "Porto");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Aplicar a primeira legenda a todas",
+      }),
+    );
+
+    expect(await screen.findByLabelText("Legenda de b.jpg")).toHaveValue(
+      "Porto",
+    );
+    await user.click(screen.getByRole("button", { name: /^Enviar 2 / }));
+    await waitFor(() => expect(FakeXHR.instances.length).toBeGreaterThan(0));
+  });
+});
+
+describe("UploadQueue — arrastar e largar", () => {
+  /** O componente lê `dataTransfer.types` e `dataTransfer.files`; o
+   * jsdom não constrói um `DragEvent` com `dataTransfer` utilizável,
+   * por isso o evento é montado à mão com só essas duas peças. */
+  function dispatchDrag(type: string, files: File[] = []) {
+    const event = new Event(type, { bubbles: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: { types: ["Files"], files },
+    });
+    window.dispatchEvent(event);
+    return event;
+  }
+
+  it("mostra o aviso de largada enquanto houver ficheiros a ser arrastados", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      dispatchDrag("dragenter");
+    });
+    expect(
+      screen.getByText("Largue as fotografias para as enviar"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      dispatchDrag("dragleave");
+    });
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("envia as fotografias largadas na página", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      dispatchDrag("dragenter");
+      dispatchDrag("drop", [
+        new File(["a"], "arrastada.jpg", { type: "image/jpeg" }),
+      ]);
+    });
+
+    await waitFor(() => expect(FakeXHR.instances).toHaveLength(1));
+    // O aviso desaparece assim que a largada é tratada.
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("um arrastar que não traga ficheiros (texto, uma ligação) é ignorado", async () => {
+    renderUploadQueue();
+
+    await act(async () => {
+      const event = new Event("dragenter", { bubbles: true });
+      Object.defineProperty(event, "dataTransfer", {
+        value: { types: ["text/plain"], files: [] },
+      });
+      window.dispatchEvent(event);
+    });
+
+    expect(
+      screen.queryByText("Largue as fotografias para as enviar"),
+    ).not.toBeInTheDocument();
   });
 });

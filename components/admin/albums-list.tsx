@@ -65,7 +65,7 @@ export function AlbumsList() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-14">
       <header className="flex items-center justify-between">
-        <h1 className="text-foreground font-serif text-2xl font-semibold sm:text-3xl">
+        <h1 className="text-foreground font-display text-2xl font-semibold sm:text-3xl">
           Álbuns
         </h1>
         <Link

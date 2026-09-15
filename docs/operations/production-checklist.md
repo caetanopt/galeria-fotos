@@ -81,18 +81,31 @@ implantação, para não se repetirem:
    supabase db push
    ```
 
-   Confirmar que todas as migrações em `supabase/migrations/` (0001 a
-   0008 nesta fase) foram aplicadas — em particular a 0005, que liga
+   Confirmar que todas as migrações em `supabase/migrations/` foram
+   aplicadas (0001 a 0009 nesta fase) — em particular a 0005, que liga
    `photos` à publicação `supabase_realtime`; sem ela, o tempo real
    (secção 11) fica silenciosamente inativo.
 
-   **Sem a CLI do Supabase à mão?** `docs/operations/migracoes-pendentes.sql`
-   reúne as migrações 0006 a 0008 num único script para colar no SQL
+   **Sem terminal? Projeto novo e vazio:**
+   `docs/operations/instalacao-inicial.sql` reúne as migrações 0001 a
+   0009 num único script para colar no SQL Editor do painel, seguidas do
+   registo no histórico de migrações do CLI — sem essas linhas o painel
+   continuaria a dizer "No migrations" e um `supabase db push` futuro
+   tentaria reaplicar tudo por cima. Verificado contra um Postgres 16
+   real: o esquema resultante é idêntico (diff vazio sobre um `pg_dump`
+   de `public` + `storage`) ao de aplicar as migrações pela CLI, e a
+   própria CLI passa a responder "Remote database is up to date".
+   Não é idempotente — é só para uma base vazia.
+
+   **Sem a CLI, mas com a base já a meio?** `docs/operations/migracoes-pendentes.sql`
+   reúne as migrações 0006 a 0009 num único script para colar no SQL
    Editor do painel. É idempotente (`if not exists`/`if exists` em todas
    as instruções), por isso é seguro correr sem saber ao certo o que já
    foi aplicado, e seguro correr mais do que uma vez. Verificado contra
-   um Postgres 16 real: produz exatamente o mesmo esquema que aplicar as
-   migrações 0006, 0007 e 0008 por ordem.
+   um Postgres 16 real, já com a 0009 incluída: partindo de uma base com
+   as migrações 0001 a 0005, o script produz exatamente o mesmo conjunto
+   de colunas e índices que aplicar as migrações 0001 a 0009 por ordem, e
+   correr o script uma segunda vez não altera mais nada.
 
 3. Ativar o fornecedor **Google** em Authentication → Sign In / Providers,
    para o login administrativo (secção 6.1) — distinto do OAuth do Drive.
@@ -106,6 +119,14 @@ implantação, para não se repetirem:
 6. Copiar `Project URL`, `anon public key` e `service_role key` — vão
    para `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e
    `SUPABASE_SERVICE_ROLE_KEY`.
+7. Confirmar tudo de uma vez: colar
+   `docs/operations/verificar-supabase.sql` no SQL Editor. Só lê, e
+   devolve seis linhas que começam por "OK" ou por "FALTA"/"ERRO"
+   (tabelas + RLS, colunas da 0006, índices da 0008/0009, bucket
+   privado, `photos` na publicação de tempo real, trigger de perfis).
+   Os pontos 3 e 4 desta lista — fornecedor Google e anonymous
+   sign-ins — são configuração do painel, não da base de dados, e não
+   aparecem nesta verificação.
 
 ### Segredos e configuração (nunca no repositório)
 

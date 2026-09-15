@@ -33,6 +33,7 @@ export function toPublicShareLink(link: ShareLinkRow): PublicShareLink {
     id: link.id,
     album_id: link.album_id,
     permissions: link.permissions,
+    require_caption: link.require_caption,
     expires_at: link.expires_at,
     revoked_at: link.revoked_at,
     created_by: link.created_by,
@@ -78,6 +79,10 @@ export async function createShareLink(
     encrypted_token: ciphertext,
     token_key_version: keyVersion,
     permissions: input.permissions,
+    // Só faz sentido com "upload": a um link de leitura, exigir legenda
+    // não teria a quem se aplicar.
+    require_caption:
+      input.requireCaption && input.permissions.includes("upload"),
     expires_at: input.expiresAt ?? null,
     created_by: ownerId,
   });
@@ -86,7 +91,11 @@ export async function createShareLink(
     actor_user_id: ownerId,
     album_id: albumId,
     action: "share_link.created",
-    metadata: { linkId: link.id, permissions: input.permissions },
+    metadata: {
+      linkId: link.id,
+      permissions: input.permissions,
+      requireCaption: link.require_caption,
+    },
   });
 
   return { link, token };

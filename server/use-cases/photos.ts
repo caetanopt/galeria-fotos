@@ -21,6 +21,13 @@ export interface PublicPhoto {
   status: PhotoStatus;
   isFeatured: boolean;
   uploadedAt: string;
+  /**
+   * Legenda escrita por quem enviou, quando o link a exigiu (migração
+   * 0010). Texto de quem enviou, não do álbum — nunca contém nada de
+   * identificável sobre o autor, por isso pode aparecer na galeria
+   * pública sem violar a secção 15.
+   */
+  caption: string | null;
   previewUrl: string | null;
   thumbnailUrl: string | null;
   /**
@@ -200,6 +207,7 @@ function toPublicPhoto(
     status: row.status,
     isFeatured: row.is_featured,
     uploadedAt: row.uploaded_at,
+    caption: row.caption,
     previewUrl: row.preview_path
       ? (signedUrls.get(row.preview_path) ?? null)
       : null,

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEnvCacheForTests } from "@/lib/env";
+import type { AlbumSessionPermission } from "@/lib/db/database.types";
 import { hashShareToken } from "@/lib/security/tokens";
 import { hashPin } from "@/lib/security/pin";
 import { resolveAlbumSession } from "@/server/use-cases/resolve-album";
@@ -39,7 +40,7 @@ function setup(
       pin_hash: string | null;
       revoked_at: string | null;
       expires_at: string | null;
-      permissions: ("view" | "upload" | "moderate")[];
+      permissions: AlbumSessionPermission[];
     }>;
     photos?: ReturnType<typeof makePhotoRow>[];
   } = {},
@@ -58,6 +59,7 @@ function setup(
       encrypted_token: null,
       token_key_version: null,
       permissions: ["view"],
+      require_caption: false,
       expires_at: null,
       revoked_at: null,
       created_by: "owner-1",
@@ -220,6 +222,54 @@ describe("resolveAlbumSession", () => {
     );
 
     expect(result.permissions).toEqual(["view"]);
+  });
+
+  it("mantém a permissão 'download' quando o álbum permite transferir", async () => {
+    const { token, albums, shareLinks, sessions, photos, createSignedUrls } =
+      setup({
+        album: { download_enabled: true },
+        link: { permissions: ["view", "download"] },
+      });
+
+    const result = await resolveAlbumSession(
+      { token },
+      { userId: "guest-1", isAnonymous: true },
+      { albums, shareLinks, sessions, photos, createSignedUrls },
+    );
+
+    expect(result.permissions).toEqual(["view", "download"]);
+  });
+
+  it("remove a permissão 'download' quando o álbum tem a transferência desligada", async () => {
+    const { token, albums, shareLinks, sessions, photos, createSignedUrls } =
+      setup({
+        album: { download_enabled: false },
+        link: { permissions: ["view", "download"] },
+      });
+
+    const result = await resolveAlbumSession(
+      { token },
+      { userId: "guest-1", isAnonymous: true },
+      { albums, shareLinks, sessions, photos, createSignedUrls },
+    );
+
+    expect(result.permissions).toEqual(["view"]);
+  });
+
+  it("um link sem 'download' não transfere, mesmo num álbum que o permite", async () => {
+    const { token, albums, shareLinks, sessions, photos, createSignedUrls } =
+      setup({
+        album: { download_enabled: true },
+        link: { permissions: ["view", "upload"] },
+      });
+
+    const result = await resolveAlbumSession(
+      { token },
+      { userId: "guest-1", isAnonymous: true },
+      { albums, shareLinks, sessions, photos, createSignedUrls },
+    );
+
+    expect(result.permissions).not.toContain("download");
   });
 
   it("isOwner é true para o dono do álbum autenticado (não anónimo)", async () => {

@@ -61,6 +61,20 @@ export async function getOriginalForViewer(
     throw new AppError("PHOTO_NOT_FOUND", "Fotografia não encontrada.", 404);
   }
 
+  // Duas condições, não uma: a permissão vem do link por onde este
+  // visitante entrou (migração 0011), e o interruptor do álbum continua
+  // a valer por cima de qualquer link. A resolução do link já retira a
+  // permissão quando o álbum tem as transferências desligadas; esta
+  // segunda verificação apanha o caso de o álbum ser desligado DEPOIS
+  // de a sessão ter sido criada, sem esperar que ela expire.
+  if (!session.permissions.includes("download")) {
+    throw new AppError(
+      "ALBUM_DOWNLOAD_DISABLED",
+      "Este link não permite transferir fotografias.",
+      403,
+    );
+  }
+
   const album = await deps.albums.findById(photo.album_id);
   if (!album || !album.download_enabled) {
     throw new AppError(

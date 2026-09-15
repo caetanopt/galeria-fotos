@@ -33,6 +33,7 @@ function makePhoto(overrides: Partial<AdminPhotoView> = {}): AdminPhotoView {
     isFeatured: false,
     isCover: false,
     moderationNote: null,
+    caption: null,
     originalFilename: "foto.jpg",
     width: 800,
     height: 600,
@@ -324,6 +325,44 @@ describe("PhotoModeration — selecionar tudo e ações em lote", () => {
 
     expect(
       await screen.findByText("7 fotografia(s) não puderam ser processadas."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("PhotoModeration — legendas", () => {
+  function mockOnePhoto(caption: string | null) {
+    vi.spyOn(global, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: { photos: [makePhoto({ caption })], nextOffset: null },
+            error: null,
+          }),
+          { status: 200 },
+        ),
+    );
+  }
+
+  it("mostra a legenda escrita por quem enviou", async () => {
+    mockOnePhoto("Concessão Porto");
+    renderModeration();
+
+    expect(await screen.findByText("Concessão Porto")).toBeInTheDocument();
+  });
+
+  it("usa a legenda como texto alternativo da miniatura", async () => {
+    mockOnePhoto("Concessão Porto");
+    renderModeration();
+
+    expect(await screen.findByAltText("Concessão Porto")).toBeInTheDocument();
+  });
+
+  it("sem legenda, mantém a descrição neutra da miniatura", async () => {
+    mockOnePhoto(null);
+    renderModeration();
+
+    expect(
+      await screen.findByAltText("Fotografia do álbum"),
     ).toBeInTheDocument();
   });
 });
