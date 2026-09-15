@@ -86,7 +86,18 @@ implantação, para não se repetirem:
    `photos` à publicação `supabase_realtime`; sem ela, o tempo real
    (secção 11) fica silenciosamente inativo.
 
-   **Sem a CLI do Supabase à mão?** `docs/operations/migracoes-pendentes.sql`
+   **Sem terminal? Projeto novo e vazio:**
+   `docs/operations/instalacao-inicial.sql` reúne as migrações 0001 a
+   0009 num único script para colar no SQL Editor do painel, seguidas do
+   registo no histórico de migrações do CLI — sem essas linhas o painel
+   continuaria a dizer "No migrations" e um `supabase db push` futuro
+   tentaria reaplicar tudo por cima. Verificado contra um Postgres 16
+   real: o esquema resultante é idêntico (diff vazio sobre um `pg_dump`
+   de `public` + `storage`) ao de aplicar as migrações pela CLI, e a
+   própria CLI passa a responder "Remote database is up to date".
+   Não é idempotente — é só para uma base vazia.
+
+   **Sem a CLI, mas com a base já a meio?** `docs/operations/migracoes-pendentes.sql`
    reúne as migrações 0006 a 0009 num único script para colar no SQL
    Editor do painel. É idempotente (`if not exists`/`if exists` em todas
    as instruções), por isso é seguro correr sem saber ao certo o que já
