@@ -206,7 +206,15 @@ export function Lightbox({
             <div
               key={slidePhoto.id}
               aria-hidden={!isCurrent}
-              className={`rounded-card absolute top-1/2 left-1/2 h-[68%] w-[78%] max-w-xl overflow-hidden bg-black/30 shadow-2xl transition-[transform,opacity] duration-300 sm:w-[62%] ${isCurrent ? "" : "pointer-events-none"}`}
+              // `max-w-xl` (576px) prendia a fotografia a menos de um
+              // terço de um monitor de 1900px: clicar numa miniatura
+              // abria uma imagem mais pequena do que o preview, com
+              // preto à volta. O teto passa a ser alto e a altura sobe
+              // a partir de `lg`, para a fotografia usar o espaço
+              // vertical que um ecrã largo tem de sobra. As fotografias
+              // vizinhas continuam a espreitar, porque o deslocamento é
+              // relativo à largura do slide, não absoluto.
+              className={`rounded-card absolute top-1/2 left-1/2 h-[68%] w-[78%] overflow-hidden bg-black/30 shadow-2xl transition-[transform,opacity] duration-300 sm:w-[62%] lg:h-[86%] lg:w-[64%] lg:max-w-[1400px] ${isCurrent ? "" : "pointer-events-none"}`}
               style={{
                 transform: `translate(-50%, -50%) translateX(${offset * 88}%) scale(${isCurrent ? 1 : 0.85})`,
                 opacity: isCurrent ? 1 : 0.45,
@@ -217,7 +225,16 @@ export function Lightbox({
                 // eslint-disable-next-line @next/next/no-img-element -- URL assinado de um domínio de Storage dinâmico (por instalação); ver docs/decisions/0005.
                 <img
                   src={slidePhoto.previewUrl}
-                  alt={isCurrent ? "Fotografia do álbum" : ""}
+                  // A legenda é o texto alternativo configurável que a
+                  // secção 17 pede; sem ela, a descrição neutra de
+                  // sempre — nunca o nome do ficheiro. Vazio quando não
+                  // é o slide atual, para o leitor de ecrã não anunciar
+                  // as fotografias vizinhas.
+                  alt={
+                    isCurrent
+                      ? (slidePhoto.caption ?? "Fotografia do álbum")
+                      : ""
+                  }
                   className="h-full w-full object-contain"
                 />
               ) : (
@@ -255,6 +272,12 @@ export function Lightbox({
       </div>
 
       <div className="flex flex-col items-center gap-3 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        {photo.caption && (
+          <p className="max-w-2xl text-center text-base font-medium text-balance text-white">
+            {photo.caption}
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white/70">
           <span>
             Enviada em {new Date(photo.uploadedAt).toLocaleDateString("pt-PT")}

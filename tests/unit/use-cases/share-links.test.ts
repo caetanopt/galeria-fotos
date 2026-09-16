@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEnvCacheForTests } from "@/lib/env";
+import type { AlbumSessionPermission } from "@/lib/db/database.types";
 import {
   createShareLink,
   listShareLinksForAlbum,
@@ -37,7 +38,7 @@ describe("createShareLink", () => {
     const { link, token } = await createShareLink(
       album.id,
       "owner-1",
-      { permissions: ["view"] },
+      { permissions: ["view"], requireCaption: false },
       { albums, shareLinks, auditLog },
     );
 
@@ -56,7 +57,7 @@ describe("createShareLink", () => {
     const { link, token } = await createShareLink(
       album.id,
       "owner-1",
-      { permissions: ["view"] },
+      { permissions: ["view"], requireCaption: false },
       { albums, shareLinks, auditLog },
     );
 
@@ -73,7 +74,8 @@ describe("createShareLink", () => {
       pin_hash: null,
       encrypted_token: null,
       token_key_version: null,
-      permissions: ["view"] satisfies ("view" | "upload" | "moderate")[],
+      permissions: ["view"] satisfies AlbumSessionPermission[],
+      require_caption: false,
       expires_at: null,
       revoked_at: null,
       created_by: "owner-1",
@@ -92,7 +94,7 @@ describe("createShareLink", () => {
     await createShareLink(
       album.id,
       "owner-1",
-      { permissions: ["view"], pin: "1234" },
+      { permissions: ["view"], requireCaption: false, pin: "1234" },
       { albums, shareLinks, auditLog },
     );
 
@@ -110,7 +112,7 @@ describe("createShareLink", () => {
       createShareLink(
         album.id,
         "owner-2",
-        { permissions: ["view"] },
+        { permissions: ["view"], requireCaption: false },
         { albums, shareLinks, auditLog },
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -127,7 +129,7 @@ describe("listShareLinksForAlbum", () => {
     await createShareLink(
       album.id,
       "owner-1",
-      { permissions: ["view"] },
+      { permissions: ["view"], requireCaption: false },
       { albums, shareLinks, auditLog },
     );
 
@@ -149,7 +151,7 @@ describe("revokeShareLink", () => {
     const { link } = await createShareLink(
       album.id,
       "owner-1",
-      { permissions: ["view"] },
+      { permissions: ["view"], requireCaption: false },
       { albums, shareLinks, auditLog },
     );
 
@@ -160,6 +162,7 @@ describe("revokeShareLink", () => {
         user_id: "guest-1",
         share_link_id: link.id,
         permissions: ["view"],
+        require_caption: false,
         expires_at: new Date(Date.now() + 60_000).toISOString(),
         created_at: new Date().toISOString(),
       },

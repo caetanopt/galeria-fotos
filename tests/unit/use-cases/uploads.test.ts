@@ -198,14 +198,19 @@ describe("uploads use-cases", () => {
   });
 
   describe("completeUpload", () => {
-    async function makeDeps(overrides: { moderationEnabled?: boolean } = {}) {
+    async function makeDeps(
+      overrides: { moderationEnabled?: boolean; requireCaption?: boolean } = {},
+    ) {
       const album = makeBaseAlbum({
         moderation_enabled: overrides.moderationEnabled ?? false,
       });
       const connection = makeActiveConnection();
       const albums = createFakeAlbumsRepository([album]);
       const sessions = createFakeAlbumSessionsRepository([
-        makeAlbumSessionRow({ permissions: ["view", "upload"] }),
+        makeAlbumSessionRow({
+          permissions: ["view", "upload"],
+          require_caption: overrides.requireCaption ?? false,
+        }),
       ]);
       const connections = createFakeGoogleConnectionsRepository([connection]);
       const uploadJobs = createFakeUploadJobsRepository();
@@ -305,6 +310,70 @@ describe("uploads use-cases", () => {
 
       expect(photos.rows).toHaveLength(1);
       expect(first.sha256).toBe(photos.rows[0].sha256);
+    });
+
+    it("guarda a legenda enviada", async () => {
+      const { job, deps } = await makeDeps();
+      const fileBuffer = await createTestJpeg();
+
+      const photo = await completeUpload(
+        {
+          uploadId: job.id,
+          fileBuffer,
+          declaredFilename: "foto.jpg",
+          caption: "  Concessão Porto  ",
+        },
+        { albumId: "album-1", userId: "user-1" },
+        deps,
+      );
+
+      expect(photo.caption).toBe("Concessão Porto");
+    });
+
+    it("guarda null quando não vem legenda nenhuma", async () => {
+      const { job, deps } = await makeDeps();
+      const fileBuffer = await createTestJpeg();
+
+      const photo = await completeUpload(
+        { uploadId: job.id, fileBuffer, declaredFilename: "foto.jpg" },
+        { albumId: "album-1", userId: "user-1" },
+        deps,
+      );
+
+      expect(photo.caption).toBeNull();
+    });
+
+    it("recusa o envio sem legenda quando a sessão a exige", async () => {
+      const { job, deps } = await makeDeps({ requireCaption: true });
+      const fileBuffer = await createTestJpeg();
+
+      await expect(
+        completeUpload(
+          { uploadId: job.id, fileBuffer, declaredFilename: "foto.jpg" },
+          { albumId: "album-1", userId: "user-1" },
+          deps,
+        ),
+      ).rejects.toMatchObject({ code: "UPLOAD_CAPTION_REQUIRED" });
+    });
+
+    it("uma legenda só com espaços conta como vazia", async () => {
+      // O cliente pode contornar o campo obrigatório; a exigência vive
+      // na sessão, no servidor, e é aqui que se prova.
+      const { job, deps } = await makeDeps({ requireCaption: true });
+      const fileBuffer = await createTestJpeg();
+
+      await expect(
+        completeUpload(
+          {
+            uploadId: job.id,
+            fileBuffer,
+            declaredFilename: "foto.jpg",
+            caption: "   ",
+          },
+          { albumId: "album-1", userId: "user-1" },
+          deps,
+        ),
+      ).rejects.toMatchObject({ code: "UPLOAD_CAPTION_REQUIRED" });
     });
 
     it("recusa quando o upload_job não pertence ao álbum/utilizador", async () => {

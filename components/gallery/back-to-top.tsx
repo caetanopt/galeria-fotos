@@ -43,7 +43,12 @@ export function BackToTop() {
         })
       }
       aria-label="Voltar ao topo"
-      className="border-border bg-surface/90 text-foreground hover:bg-surface fixed right-4 bottom-28 z-30 flex h-11 w-11 items-center justify-center rounded-full border shadow-lg backdrop-blur transition active:scale-95 motion-reduce:active:scale-100 sm:bottom-32"
+      // No telemóvel fica por cima do botão de envio, que está ao
+      // centro; a partir de `lg` o envio passa a ocupar o canto
+      // inferior direito e a fila de miniaturas cresce para cima a
+      // partir dele — daí a troca de canto, que evita a sobreposição
+      // sem depender da altura que a fila tenha num dado momento.
+      className="border-border bg-surface/90 text-foreground hover:bg-surface fixed right-4 bottom-28 z-30 flex h-11 w-11 items-center justify-center rounded-full border shadow-lg backdrop-blur transition active:scale-95 motion-reduce:active:scale-100 sm:bottom-32 lg:right-auto lg:bottom-6 lg:left-6"
     >
       <svg
         aria-hidden="true"

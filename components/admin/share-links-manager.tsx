@@ -13,6 +13,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   view: "Ver",
   upload: "Enviar fotografias",
   moderate: "Moderar",
+  download: "Transferir fotografias",
 };
 
 /**
@@ -29,6 +30,7 @@ const shareLinkFormSchema = z.object({
     .trim()
     .regex(/^(\d{4,8})?$/, "O PIN deve ter entre 4 e 8 dígitos.")
     .default(""),
+  requireCaption: z.boolean().default(false),
   expiresAt: z.string().default(""),
 });
 
@@ -47,7 +49,12 @@ export function ShareLinksManager({ albumId }: { albumId: string }) {
 
   const form = useForm<CreateShareLinkFormValues>({
     resolver: zodResolver(shareLinkFormSchema),
-    defaultValues: { permissions: ["view"], pin: "", expiresAt: "" },
+    defaultValues: {
+      permissions: ["view"],
+      requireCaption: false,
+      pin: "",
+      expiresAt: "",
+    },
   });
 
   const createMutation = useMutation({
@@ -58,6 +65,7 @@ export function ShareLinksManager({ albumId }: { albumId: string }) {
           method: "POST",
           body: JSON.stringify({
             permissions: values.permissions,
+            requireCaption: values.requireCaption ?? false,
             ...(values.pin ? { pin: values.pin } : {}),
             ...(values.expiresAt
               ? { expiresAt: new Date(values.expiresAt).toISOString() }
@@ -67,7 +75,12 @@ export function ShareLinksManager({ albumId }: { albumId: string }) {
       ),
     onSuccess: ({ token }) => {
       setCreatedToken(token);
-      form.reset({ permissions: ["view"], pin: "", expiresAt: "" });
+      form.reset({
+        permissions: ["view"],
+        requireCaption: false,
+        pin: "",
+        expiresAt: "",
+      });
       queryClient.invalidateQueries({
         queryKey: ["albums", albumId, "share-links"],
       });
@@ -133,6 +146,26 @@ export function ShareLinksManager({ albumId }: { albumId: string }) {
             </label>
           ))}
         </fieldset>
+
+        {/* Exigência sobre quem já tem "upload", não uma permissão — por
+            isso fica fora do conjunto acima (ver migração 0010). */}
+        <div className="flex flex-col gap-1">
+          <label className="text-foreground flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              {...form.register("requireCaption")}
+            />
+            <span>
+              Exigir legenda em cada fotografia
+              <span className="text-foreground/60 block text-xs">
+                Quem enviar por este link tem de identificar cada fotografia —
+                por exemplo, &quot;Concessão Porto&quot;. Só se aplica a links
+                com permissão de envio.
+              </span>
+            </span>
+          </label>
+        </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="pin" className="text-foreground text-sm font-medium">
@@ -203,6 +236,7 @@ export function ShareLinksManager({ albumId }: { albumId: string }) {
                       .map((p) => PERMISSION_LABELS[p])
                       .join(", ")}
                     {link.hasPin && " · com PIN"}
+                    {link.require_caption && " · legenda obrigatória"}
                   </p>
                   <p className="text-foreground/60">
                     {isRevoked

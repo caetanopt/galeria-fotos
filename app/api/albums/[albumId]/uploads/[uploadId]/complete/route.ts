@@ -9,6 +9,7 @@ import { createAuditLogRepository } from "@/server/repositories/audit-log-reposi
 import { createSupabasePreviewStorage } from "@/lib/media/preview-storage";
 import { sanitizeOriginalFilename } from "@/lib/media/filenames";
 import { completeUpload } from "@/server/use-cases/uploads";
+import { captionSchema } from "@/lib/validation/upload";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getServerEnv } from "@/lib/env";
 import { AppError, jsonError, jsonOk, newRequestId } from "@/lib/api/response";
@@ -80,6 +81,22 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
+    // A legenda viaja no mesmo multipart do ficheiro, para não obrigar
+    // a um pedido à parte por fotografia. Validada aqui quanto ao
+    // formato; se é obrigatória, decide-o `completeUpload` a partir da
+    // sessão.
+    const rawCaption = formData.get("caption");
+    const parsedCaption = captionSchema.safeParse(
+      typeof rawCaption === "string" ? rawCaption : undefined,
+    );
+    if (!parsedCaption.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        parsedCaption.error.issues[0]?.message ?? "Legenda inválida.",
+        400,
+      );
+    }
+
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const adminClient = createSupabaseAdminClient();
 
@@ -88,6 +105,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         uploadId,
         fileBuffer,
         declaredFilename: sanitizeOriginalFilename(file.name),
+        caption: parsedCaption.data,
       },
       { albumId, userId: user.id },
       {

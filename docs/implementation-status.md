@@ -3,6 +3,16 @@
 Este documento acompanha o plano de fases definido na secção 22 do
 `CLAUDE.md`. Atualizar sempre que uma fase for concluída ou iniciada.
 
+## Nota — reimportação do repositório (2026-09-14)
+
+O repositório foi reimportado via "Add files via upload" do GitHub, que
+ignora ficheiros ocultos. Perderam-se `.npmrc`, `.gitignore`,
+`.env.example`, `.dockerignore`, `.prettierignore`, `.prettierrc` e
+`.github/workflows/ci.yml` — todos repostos, com o detalhe e a
+verificação em
+[`docs/decisions/0047-ficheiros-de-configuracao-perdidos-na-importacao.md`](decisions/0047-ficheiros-de-configuracao-perdidos-na-importacao.md).
+O código, as migrações, os testes e a documentação chegaram intactos.
+
 ## Fase 0 — Bootstrap
 
 **Estado: concluída**

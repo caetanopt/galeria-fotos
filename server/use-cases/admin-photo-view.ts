@@ -18,6 +18,10 @@ export interface AdminPhotoView {
   isFeatured: boolean;
   isCover: boolean;
   moderationNote: string | null;
+  /** Legenda escrita por quem enviou, quando o link a pediu (secção 10.4:
+   * o administrador precisa de a ver para moderar por contexto, não só
+   * pela imagem). */
+  caption: string | null;
   originalFilename: string;
   width: number | null;
   height: number | null;
@@ -40,6 +44,7 @@ export function toAdminPhotoView(
     isFeatured: photo.is_featured,
     isCover: photo.id === coverPhotoId,
     moderationNote: photo.moderation_note,
+    caption: photo.caption,
     originalFilename: photo.original_filename,
     width: photo.width,
     height: photo.height,

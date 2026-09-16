@@ -16,6 +16,9 @@ type AlbumRow = Database["public"]["Tables"]["albums"]["Row"];
  * cedo; o servidor volta sempre a validar. */
 const TITLE_MAX_LENGTH = 200;
 
+/** Espelha `description: z.string().trim().max(2000)` no mesmo ficheiro. */
+const DESCRIPTION_MAX_LENGTH = 2000;
+
 /** `event_start_at` é um `timestamptz` completo, mas aqui só interessa
  * o dia (é o que aparece na galeria pública, secção 10.1) — meio-dia
  * UTC evita que a data mude de um dia para o outro consoante o fuso
@@ -36,6 +39,8 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
   const [titleDraft, setTitleDraft] = useState("");
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState("");
 
   const albumQuery = useQuery({
     queryKey: ["albums", albumId],
@@ -110,6 +115,35 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
     eventDateMutation.mutate(dateDraft ? dateInputValueToIso(dateDraft) : null);
   }
 
+  // Aparece no cabeçalho da galeria pública, por baixo do título
+  // (secção 10.1). Uma descrição vazia guarda-se como `null`, não como
+  // string vazia: é o que distingue "sem descrição" de "descrição em
+  // branco" na galeria, que só mostra o parágrafo quando há texto.
+  const descriptionMutation = useMutation({
+    mutationFn: (description: string | null) =>
+      apiFetch<AlbumRow>(`/api/albums/${albumId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ description }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["albums", albumId] });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+      setIsEditingDescription(false);
+    },
+  });
+
+  function startEditingDescription(currentDescription: string | null) {
+    setDescriptionDraft(currentDescription ?? "");
+    descriptionMutation.reset();
+    setIsEditingDescription(true);
+  }
+
+  function submitDescription() {
+    const trimmed = descriptionDraft.trim();
+    if (trimmed.length > DESCRIPTION_MAX_LENGTH) return;
+    descriptionMutation.mutate(trimmed === "" ? null : trimmed);
+  }
+
   const deleteMutation = useMutation({
     mutationFn: () => apiFetch(`/api/albums/${albumId}`, { method: "DELETE" }),
     onSuccess: () => {
@@ -157,7 +191,7 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
                   maxLength={TITLE_MAX_LENGTH}
                   autoFocus
                   aria-label="Nome do álbum"
-                  className="border-border bg-surface text-foreground rounded-md border px-3 py-1.5 font-serif text-2xl font-semibold sm:text-3xl"
+                  className="border-border bg-surface text-foreground font-display rounded-md border px-3 py-1.5 text-2xl font-semibold sm:text-3xl"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -188,7 +222,7 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-foreground font-serif text-2xl font-semibold text-balance sm:text-3xl">
+              <h1 className="text-foreground font-display text-2xl font-semibold text-balance sm:text-3xl">
                 {album.title}
               </h1>
               <button
@@ -323,8 +357,87 @@ export function AlbumDetail({ albumId }: { albumId: string }) {
         </div>
       </header>
 
-      {album.description && (
-        <p className="text-foreground/80">{album.description}</p>
+      {isEditingDescription ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            value={descriptionDraft}
+            onChange={(event) => setDescriptionDraft(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter faz parágrafo, ao contrário do campo do título:
+              // uma descrição tem várias linhas. Guardar é pelo botão,
+              // ou por Ctrl/Cmd+Enter para quem prefere o teclado.
+              if (event.key === "Escape") setIsEditingDescription(false);
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                submitDescription();
+              }
+            }}
+            maxLength={DESCRIPTION_MAX_LENGTH}
+            rows={3}
+            autoFocus
+            aria-label="Descrição do álbum"
+            placeholder="Uma linha ou duas sobre o evento. Aparece por baixo do título na galeria."
+            className="border-border bg-surface text-foreground placeholder:text-foreground/40 w-full rounded-md border px-3 py-2 text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={submitDescription}
+              disabled={descriptionMutation.isPending}
+              className="bg-brand-600 hover:bg-brand-700 rounded-full px-3.5 py-1.5 text-xs font-medium text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:active:scale-100"
+            >
+              {descriptionMutation.isPending ? "A guardar…" : "Guardar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditingDescription(false)}
+              disabled={descriptionMutation.isPending}
+              className="border-border text-foreground hover:bg-surface-muted rounded-full border px-3.5 py-1.5 text-xs font-medium transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:active:scale-100"
+            >
+              Cancelar
+            </button>
+          </div>
+          {descriptionMutation.isError && (
+            <p role="alert" className="text-danger text-xs">
+              {descriptionMutation.error instanceof ApiRequestError
+                ? descriptionMutation.error.message
+                : "Não foi possível guardar a descrição."}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-start gap-2">
+          <p
+            className={
+              album.description
+                ? "text-foreground/80"
+                : "text-foreground/60 text-sm"
+            }
+          >
+            {album.description ?? "Sem descrição"}
+          </p>
+          <button
+            type="button"
+            onClick={() => startEditingDescription(album.description)}
+            aria-label={
+              album.description
+                ? "Editar descrição do álbum"
+                : "Adicionar descrição ao álbum"
+            }
+            title={
+              album.description ? "Editar descrição" : "Adicionar descrição"
+            }
+            className="text-foreground/50 hover:text-foreground hover:bg-surface-muted rounded-full p-1.5 transition active:scale-90 motion-reduce:active:scale-100"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-3.5 w-3.5"
+            >
+              <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-8.5 8.5a2 2 0 0 1-.878.507l-3 .857a.5.5 0 0 1-.618-.618l.857-3a2 2 0 0 1 .507-.878l8.5-8.5Z" />
+            </svg>
+          </button>
+        </div>
       )}
 
       <ShareLinksManager albumId={albumId} />

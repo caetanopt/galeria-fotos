@@ -23,6 +23,7 @@ function makePhoto(overrides: Partial<PublicPhoto> = {}): PublicPhoto {
     status: "ready",
     isFeatured: false,
     uploadedAt: new Date().toISOString(),
+    caption: null,
     previewUrl: "https://signed.example/preview.webp",
     thumbnailUrl: "https://signed.example/thumbnail.webp",
     isMine: false,

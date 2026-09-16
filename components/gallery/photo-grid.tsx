@@ -230,7 +230,7 @@ export function PhotoGrid({
       {/* A barra de controlos aparece mesmo com a lista vazia quando o
           filtro está ligado — senão não haveria forma de o desligar. */}
       {(photos.length > 0 || onlyMine) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+        <div className="max-w-gallery mx-auto flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4">
           <p className="text-foreground/60 text-xs" aria-live="polite">
             {totalCount !== null &&
               (onlyMine
@@ -269,7 +269,11 @@ export function PhotoGrid({
         <>
           {/* Grelha densa e sem espaçamento visual entre miniaturas — o
               padrão de um álbum partilhado (secção 1/10.1): tudo até à
-              borda do ecrã em telemóvel. Quadradas: num álbum com
+              borda do ecrã em telemóvel. Num ecrã grande, o teto de
+              largura (`max-w-gallery`) e as colunas extra evitam
+              o contrário: sem eles, seis colunas esticadas por 1900px
+              davam miniaturas de mais de 300px e só duas linhas por
+              ecrã. Quadradas: num álbum com
               muitas fotografias, miniaturas mais altas tornariam a
               coluna de scroll desnecessariamente longa. Acima de
               VIRTUALIZE_THRESHOLD, só as
@@ -281,7 +285,7 @@ export function PhotoGrid({
           {shouldVirtualize ? (
             <VirtualizedPhotoGrid photos={photos} onOpen={updatePhotoParam} />
           ) : (
-            <div className="grid grid-cols-3 gap-0.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+            <div className="max-w-gallery mx-auto grid w-full grid-cols-3 gap-0.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
               {photos.map((photo, index) => (
                 <PhotoTile
                   key={photo.id}

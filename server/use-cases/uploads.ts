@@ -70,7 +70,7 @@ async function authorizeUpload(
   albumId: string,
   userId: string,
   deps: Pick<UploadsDeps, "albums" | "sessions">,
-): Promise<{ album: AlbumRow }> {
+): Promise<{ album: AlbumRow; requireCaption: boolean }> {
   // As duas consultas não dependem uma da outra, por isso vão juntas:
   // em série somavam-se dois round trips à base de dados, e isto corre
   // duas vezes por fotografia (ao iniciar e ao concluir o envio). A
@@ -105,7 +105,7 @@ async function authorizeUpload(
     );
   }
 
-  return { album };
+  return { album, requireCaption: session.require_caption };
 }
 
 export interface InitiateUploadResult {
@@ -174,11 +174,32 @@ export async function initiateUpload(
  * ficheiro órfão no Drive ou na Storage.
  */
 export async function completeUpload(
-  params: { uploadId: string; fileBuffer: Buffer; declaredFilename: string },
+  params: {
+    uploadId: string;
+    fileBuffer: Buffer;
+    declaredFilename: string;
+    caption?: string;
+  },
   ctx: { albumId: string; userId: string },
   deps: UploadsDeps,
 ): Promise<PhotoRow> {
-  const { album } = await authorizeUpload(ctx.albumId, ctx.userId, deps);
+  const { album, requireCaption } = await authorizeUpload(
+    ctx.albumId,
+    ctx.userId,
+    deps,
+  );
+
+  // A legenda chega já aparada pelo esquema; aqui só decidimos se a
+  // ausência é aceitável. A exigência vem da sessão, não do pedido —
+  // um cliente não a pode contornar omitindo o campo.
+  const caption = params.caption?.trim() ? params.caption.trim() : null;
+  if (requireCaption && caption === null) {
+    throw new AppError(
+      "UPLOAD_CAPTION_REQUIRED",
+      "Este link exige uma legenda em cada fotografia.",
+      422,
+    );
+  }
 
   const job = await deps.uploadJobs.findById(params.uploadId);
   if (!job || job.album_id !== ctx.albumId || job.user_id !== ctx.userId) {
@@ -372,6 +393,7 @@ export async function completeUpload(
       height: processed.height,
       sha256: processed.sha256,
       blurhash: processed.blurhash,
+      caption,
       status,
     });
   } catch (error) {
